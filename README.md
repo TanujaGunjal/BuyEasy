@@ -1,28 +1,67 @@
-🛒 BuyEasy – Full Stack E-Commerce App
+🛒 BuyEasy – Full Stack E-Commerce Web Application
 
-BuyEasy is a full-stack MERN e-commerce web application that provides a smooth and secure online shopping experience. It demonstrates real-world implementation of frontend UI, backend APIs, authentication, database integration, and admin management.
+BuyEasy is a full-stack e-commerce web application designed to deliver a smooth, secure, and user-friendly online shopping experience.
+This project demonstrates real-world implementation of frontend development, backend APIs, authentication, database integration, and admin management using the MERN stack.
 
 🚀 Features
+👤 User Features
 
-User registration & login (JWT authentication)
+User registration & login (JWT-based authentication)
 
-Browse products & view details
+Browse products with a clean UI
 
-Cart & order management
+View product details
 
-Order history
+Add products to cart
 
-Admin dashboard for product, user & order management
+Place orders
 
-Fully responsive UI
+View order history
+
+Responsive design for all devices
+
+🛠 Admin Features
+
+Admin authentication
+
+Add, update, and delete products
+
+Manage users
+
+View and manage orders
 
 🧰 Tech Stack
+Frontend
 
-Frontend: React, CSS, Axios, React Router
+React.js
 
-Backend: Node.js, Express.js, MongoDB, Mongoose, JWT
+CSS
 
-Deployment: Vercel (Frontend), Render (Backend), MongoDB Atlas
+Axios
+
+React Router
+
+Backend
+
+Node.js
+
+Express.js
+
+MongoDB
+
+Mongoose
+
+JWT Authentication
+
+Tools & Platforms
+
+Git & GitHub
+
+Vercel (Frontend Deployment)
+
+Render (Backend Deployment)
+
+MongoDB Atlas
 
 ▶️ Run Locally
 git clone https://github.com/TanujaGunjal/BuyEasy.git
