@@ -1,0 +1,9 @@
+{
+  "short_name": "BuyEasy",
+  "name": "BuyEasy E-Commerce Platform",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#4F46E5",
+  "background_color": "#ffffff"
+}
