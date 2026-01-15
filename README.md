@@ -1,82 +1,82 @@
-🛒 BuyEasy – Full Stack E-Commerce Web Application
 
-BuyEasy is a full-stack e-commerce web application designed to deliver a smooth, secure, and user-friendly online shopping experience.
-This project demonstrates real-world implementation of frontend development, backend APIs, authentication, database integration, and admin management using the MERN stack.
 
-🚀 Features
-👤 User Features
+# 🛒 BuyEasy – Full Stack E-Commerce Web Application
 
-User registration & login (JWT-based authentication)
+BuyEasy is a **full-stack e-commerce website** that provides a smooth, secure, and user-friendly online shopping experience.
+It showcases real-world use of **frontend UI, backend APIs, authentication, database integration, and admin management** using the **MERN stack**.
 
-Browse products with a clean UI
+---
 
-View product details
+## 🚀 Features
 
-Add products to cart
+### 👤 User Features
 
-Place orders
+* User registration and login (JWT authentication)
+* Browse products with a clean interface
+* View product details
+* Add products to cart
+* Place orders
+* View order history
+* Fully responsive on all devices
 
-View order history
+### 🛠 Admin Features
 
-Responsive design for all devices
+* Secure admin login
+* Add, update, and delete products
+* Manage users
+* View and manage orders
 
-🛠 Admin Features
+---
 
-Admin authentication
+## 🧰 Tech Stack
 
-Add, update, and delete products
+### Frontend
 
-Manage users
+* React.js
+* CSS
+* Axios
+* React Router
 
-View and manage orders
+### Backend
 
-🧰 Tech Stack
-Frontend
+* Node.js
+* Express.js
+* MongoDB
+* Mongoose
+* JWT Authentication
 
-React.js
+### Tools & Platforms
 
-CSS
+* Git & GitHub
+* Vercel (Frontend Deployment)
+* Render (Backend Deployment)
+* MongoDB Atlas
 
-Axios
+---
 
-React Router
+## ▶️ Run the Project Locally
 
-Backend
+### 1️⃣ Clone the Repository
 
-Node.js
-
-Express.js
-
-MongoDB
-
-Mongoose
-
-JWT Authentication
-
-Tools & Platforms
-
-Git & GitHub
-
-Vercel (Frontend Deployment)
-
-Render (Backend Deployment)
-
-MongoDB Atlas
-
-▶️ Run Locally
+```bash
 git clone https://github.com/TanujaGunjal/BuyEasy.git
 cd BuyEasy
+```
 
+### 2️⃣ Start the Backend
 
-Backend
-
+```bash
 cd backend
 npm install
 node server.js
+```
 
+### 3️⃣ Start the Frontend
 
-Frontend
-
+```bash
 cd frontend
 npm install
 npm start
+```
+
+
