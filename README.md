@@ -1,6 +1,6 @@
 
 
-# SmartShop — Full-Stack E-Commerce with AI Support Agent
+# ShopAgent — Full-Stack E-Commerce with AI Support Agent
 
 > MERN stack e-commerce platform featuring a **Gemini AI support agent** with function-calling, **Stripe payment & refund integration**, and a **human-in-the-loop admin approval workflow** — built on Node.js, Express, React, and MongoDB.
 
