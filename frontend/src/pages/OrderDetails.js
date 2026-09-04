@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
+import StripeCheckout from '../components/StripeCheckout';
 
 const OrderDetails = () => {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
+  const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [paid, setPaid] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -13,13 +16,25 @@ const OrderDetails = () => {
 
   const loadOrder = async () => {
     try {
-      const response = await api.get(`/orders/${id}`);
-      setOrder(response.data.data);
+      const [orderRes, paymentRes] = await Promise.all([
+        api.get(`/orders/${id}`),
+        api.get(`/payments/order/${id}`).catch(() => null),
+      ]);
+      setOrder(orderRes.data.data);
+      if (paymentRes) {
+        setPayment(paymentRes.data.data);
+      }
     } catch (error) {
       console.error('Error loading order:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Reload order to reflect paid status
+    setPaid(true);
+    await loadOrder();
   };
 
   if (loading) {
@@ -34,10 +49,18 @@ const OrderDetails = () => {
     );
   }
 
+  const isPaid = order.isPaid || paid;
+
   return (
     <div className="order-details-page py-3">
       <div className="container">
         <h1 className="mb-2">Order Details</h1>
+
+        {isPaid && (
+          <div className="alert alert-success" style={{ marginBottom: '16px' }}>
+            ✅ Payment successful! Your order is confirmed.
+          </div>
+        )}
 
         <div className="order-info-grid">
           <div>
@@ -47,7 +70,25 @@ const OrderDetails = () => {
               <p><strong>Date:</strong> {new Date(order.createdAt).toLocaleString()}</p>
               <p><strong>Status:</strong> <span className={`badge badge-${getStatusColor(order.orderStatus)}`}>{order.orderStatus}</span></p>
               <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
-              <p><strong>Payment Status:</strong> {order.isPaid ? 'Paid' : 'Pending'}</p>
+              <p>
+                <strong>Payment Status:</strong>{' '}
+                <span className={`badge badge-${isPaid ? 'success' : 'warning'}`}>
+                  {isPaid ? '✓ Paid' : 'Pending Payment'}
+                </span>
+                {payment?.transactionId && payment.transactionId.startsWith('pi_') && (
+                  <span style={{ marginLeft: '8px', fontSize: '12px', color: '#6b7280' }}>
+                    (Stripe: {payment.transactionId})
+                  </span>
+                )}
+              </p>
+              {payment?.refundTransactionId && (
+                <p>
+                  <strong>Refund ID:</strong>{' '}
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                    {payment.refundTransactionId}
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="card mb-2">
@@ -95,6 +136,27 @@ const OrderDetails = () => {
                 <strong>${order.totalPrice.toFixed(2)}</strong>
               </div>
             </div>
+
+            {/* Show Stripe payment UI only if order is unpaid AND is Card payment method */}
+            {!isPaid && order.paymentMethod === 'Card' && payment && (
+              <StripeCheckout
+                orderId={order._id}
+                paymentId={payment._id}
+                onSuccess={handlePaymentSuccess}
+              />
+            )}
+
+            {/* For cash on delivery */}
+            {!isPaid && order.paymentMethod === 'Cash on Delivery' && (
+              <div className="card" style={{ marginTop: '20px', background: '#f0fdf4' }}>
+                <p style={{ color: '#065f46', fontWeight: '600' }}>
+                  💵 Payment on Delivery
+                </p>
+                <p style={{ fontSize: '14px', color: '#374151' }}>
+                  Please have the exact amount ready when your order arrives.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -148,18 +210,12 @@ const OrderDetails = () => {
 
 const getStatusColor = (status) => {
   switch (status) {
-    case 'Pending':
-      return 'warning';
-    case 'Processing':
-      return 'info';
-    case 'Shipped':
-      return 'primary';
-    case 'Delivered':
-      return 'success';
-    case 'Cancelled':
-      return 'danger';
-    default:
-      return 'secondary';
+    case 'Pending': return 'warning';
+    case 'Processing': return 'info';
+    case 'Shipped': return 'primary';
+    case 'Delivered': return 'success';
+    case 'Cancelled': return 'danger';
+    default: return 'secondary';
   }
 };
 

@@ -37,6 +37,8 @@ const orders = require('./routes/orders');
 const users = require('./routes/users');
 const deliveries = require('./routes/deliveries');
 const payments = require('./routes/payments');
+const agent = require('./routes/agent');
+const adminApprovals = require('./routes/adminApprovals');
 
 // Mount routers
 app.use('/api/auth', auth);
@@ -46,6 +48,8 @@ app.use('/api/orders', orders);
 app.use('/api/users', users);
 app.use('/api/deliveries', deliveries);
 app.use('/api/payments', payments);
+app.use('/api/agent', agent);
+app.use('/api/admin', adminApprovals);
 
 // Welcome route
 app.get('/', (req, res) => {

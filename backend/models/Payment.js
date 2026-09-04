@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const PaymentSchema = new mongoose.Schema({
   paymentId: {
     type: String,
-    required: true,
     unique: true,
+    default: () => `PAY${Date.now()}${Math.floor(Math.random() * 1000)}`,
   },
   order: {
     type: mongoose.Schema.Types.ObjectId,
@@ -70,6 +70,10 @@ const PaymentSchema = new mongoose.Schema({
   refundReason: {
     type: String,
     maxlength: 500,
+  },
+  refundTransactionId: {
+    type: String,
+    sparse: true,
   },
   createdAt: {
     type: Date,

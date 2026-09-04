@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaShoppingCart, FaUser, FaStore } from 'react-icons/fa';
+import { FaShoppingCart, FaUser, FaStore, FaChevronDown } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import './navbar.css';
@@ -8,6 +8,7 @@ import './navbar.css';
 const Navbar = () => {
   const { isAuthenticated, user, logout, isAdmin } = useAuth();
   const { cart } = useCart();
+  const [adminOpen, setAdminOpen] = useState(false);
 
   return (
     <nav className="navbar">
@@ -49,8 +50,25 @@ const Navbar = () => {
               </li>
 
               {isAdmin && (
-                <li>
-                  <Link to="/admin">Admin</Link>
+                <li
+                  className="admin-dropdown-wrap"
+                  onMouseEnter={() => setAdminOpen(true)}
+                  onMouseLeave={() => setAdminOpen(false)}
+                >
+                  <span className="admin-dropdown-trigger">
+                    Admin <FaChevronDown size={10} style={{ marginLeft: 4 }} />
+                  </span>
+                  {adminOpen && (
+                    <ul className="admin-dropdown-menu">
+                      <li><Link to="/admin" onClick={() => setAdminOpen(false)}>Dashboard</Link></li>
+                      <li><Link to="/admin/orders" onClick={() => setAdminOpen(false)}>Manage Orders</Link></li>
+                      <li><Link to="/admin/products" onClick={() => setAdminOpen(false)}>Manage Products</Link></li>
+                      <li><Link to="/admin/users" onClick={() => setAdminOpen(false)}>Manage Users</Link></li>
+                      <li><Link to="/admin/audit-log" onClick={() => setAdminOpen(false)}>Audit Log</Link></li>
+                      <li className="dropdown-divider" />
+                      <li><Link to="/admin/pending-approvals" onClick={() => setAdminOpen(false)} style={{ color: '#dc2626', fontWeight: 600 }}>⚠ Pending Approvals</Link></li>
+                    </ul>
+                  )}
                 </li>
               )}
 

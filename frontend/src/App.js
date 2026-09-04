@@ -16,8 +16,11 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminProducts from './pages/admin/Products';
 import AdminOrders from './pages/admin/Orders';
 import AdminUsers from './pages/admin/Users';
+import PendingApprovals from './pages/admin/PendingApprovals';
+import AuditLog from './pages/admin/AuditLog';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
+import ChatWidget from './components/ChatWidget';
 import './App.css';
 
 function App() {
@@ -45,9 +48,13 @@ function App() {
           <Route path="/admin/products" element={<AdminRoute><AdminProducts /></AdminRoute>} />
           <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
           <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+          <Route path="/admin/pending-approvals" element={<AdminRoute><PendingApprovals /></AdminRoute>} />
+          <Route path="/admin/audit-log" element={<AdminRoute><AuditLog /></AdminRoute>} />
         </Routes>
       </main>
       <Footer />
+      {/* Chat widget renders for all authenticated users on every page */}
+      <ChatWidget />
     </div>
   );
 }

@@ -7,6 +7,7 @@ const {
   getPaymentByOrder,
   refundPayment,
   getMyPayments,
+  createIntent,
 } = require('../controllers/paymentController');
 
 const router = express.Router();
@@ -16,6 +17,7 @@ const { protect, authorize } = require('../middleware/auth');
 // All routes are protected
 router.use(protect);
 
+router.post('/create-intent', createIntent);
 router.post('/', createPayment);
 router.post('/:id/process', processPayment);
 router.get('/my', getMyPayments);

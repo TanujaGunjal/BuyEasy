@@ -1,6 +1,7 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const Cart = require('../models/Cart');
+const Payment = require('../models/Payment');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -64,6 +65,19 @@ exports.createOrder = async (req, res, next) => {
       { user: req.user.id },
       { items: [] }
     );
+
+    // Auto-create a Payment record so OrderDetails can load it immediately.
+    // For Card orders: status stays 'Pending' until Stripe payment completes.
+    // For Cash on Delivery: mark Pending too (no online payment needed).
+    const paymentMethodLabel = paymentMethod === 'Card' ? 'Credit Card' : paymentMethod;
+    const supportedMethods = ['Credit Card', 'Debit Card', 'PayPal', 'Cash on Delivery', 'UPI', 'Net Banking'];
+    const finalMethod = supportedMethods.includes(paymentMethodLabel) ? paymentMethodLabel : 'Credit Card';
+    await Payment.create({
+      order: order._id,
+      amount: order.totalPrice,
+      paymentMethod: finalMethod,
+      status: 'Pending',
+    });
 
     res.status(201).json({
       success: true,
