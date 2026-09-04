@@ -1,8 +1,8 @@
 
 
-# BuyEasy — Technical Reference
+# SmartShop — Full-Stack E-Commerce with AI Support Agent
 
-> Full-stack MERN e-commerce platform with a Stripe payment gateway, a Gemini-powered AI support agent, and a human-in-the-loop refund approval workflow.
+> MERN stack e-commerce platform featuring a **Gemini AI support agent** with function-calling, **Stripe payment & refund integration**, and a **human-in-the-loop admin approval workflow** — built on Node.js, Express, React, and MongoDB.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-43%20passed-brightgreen)](#10-test-suite)
