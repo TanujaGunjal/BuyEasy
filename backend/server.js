@@ -21,6 +21,7 @@ app.use(express.urlencoded({ extended: true }));
 const allowedOrigins = [
   "http://localhost:3000",
   "https://buyeasy-six.vercel.app",
+  "https://frontend-nine-zeta-53.vercel.app",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
