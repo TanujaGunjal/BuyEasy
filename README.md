@@ -7,7 +7,7 @@
 [![Node](https://img.shields.io/badge/Node.js-v18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-v18-61DAFB?logo=react&logoColor=black)](https://reactjs.org)
 
-**Live Demo:** 🖥️ Frontend: [buyeasy-six.vercel.app](https://buyeasy-six.vercel.app) | ⚙️ Backend API: [shopagent-6qrh.onrender.com](https://shopagent-6qrh.onrender.com)
+**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [shopagent-6qrh.onrender.com](https://shopagent-6qrh.onrender.com)
 
 ---
 
