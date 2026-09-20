@@ -49,6 +49,14 @@ with EVAL_SET_PATH.open() as f:
 in_scope  = [item for item in eval_set if item["source"] is not None]
 off_topic = [item for item in eval_set if item["source"] is None]
 
+
+def accepted_sources(item: dict) -> list[str]:
+    """Return the list of acceptable source filenames for a question.
+    'source' may be a string (single doc) or a list (multi-doc question).
+    """
+    src = item["source"]
+    return src if isinstance(src, list) else [src]
+
 print(f"Loaded {len(eval_set)} eval items: {len(in_scope)} in-scope, {len(off_topic)} off-topic")
 print(f"Querying {RAG_SERVICE_URL} with k={K}\n")
 
@@ -93,9 +101,10 @@ for item in in_scope:
     latencies.append(latency)
 
     sources = [r["source"] for r in results]
+    accepted = accepted_sources(item)
     hit_rank = None
     for rank, src in enumerate(sources, 1):
-        if src == target:
+        if src in accepted:
             hit_rank = rank
             break
 
@@ -107,7 +116,7 @@ for item in in_scope:
         reciprocals.append(0.0)
         missed.append({
             "question": q,
-            "expected_source": target,
+            "expected_source": accepted if len(accepted) > 1 else accepted[0],
             "retrieved": [{"source": r["source"], "heading": r["heading"], "score": r["score"]}
                           for r in results],
         })

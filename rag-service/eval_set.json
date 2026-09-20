@@ -37,5 +37,16 @@
   {"q": "Can you help me write a Python function to sort a list?", "source": null},
   {"q": "Who won the cricket match last night?", "source": null},
   {"q": "What is the best smartphone to buy right now regardless of price?", "source": null},
-  {"q": "Can you translate this sentence to French for me?", "source": null}
+  {"q": "Can you translate this sentence to French for me?", "source": null},
+
+  {"q": "my parcel is late what now", "source": "shipping.md"},
+  {"q": "can i get money back if i change my mind", "source": "cancellations.md"},
+  {"q": "havent recieved my item its been 2 weeks", "source": "shipping.md"},
+  {"q": "i want refund but the item got delivered yesterday is it to late", "source": "returns.md"},
+  {"q": "how do i pay COD", "source": "payments.md"},
+  {"q": "broke item out of box whos responsible buyyeasy or manufacturer", "source": ["warranty.md", "returns.md"]},
+  {"q": "cancelled order will i get refund back to card", "source": ["cancellations.md", "refunds.md"]},
+  {"q": "can i return if i just dont like it no damage", "source": "returns.md"},
+  {"q": "payment went thru but order not confirmed", "source": ["payments.md", "cancellations.md"]},
+  {"q": "warrenty claim rejected now what can i return it", "source": ["warranty.md", "returns.md"]}
 ]
