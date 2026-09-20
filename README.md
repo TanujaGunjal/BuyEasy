@@ -7,7 +7,7 @@
 [![Node](https://img.shields.io/badge/Node.js-v18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-v18-61DAFB?logo=react&logoColor=black)](https://reactjs.org)
 
-**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [shopagent-6qrh.onrender.com](https://shopagent-6qrh.onrender.com) *(Render)* / Cloud Run URL: fill in after deploy → `shopagent-api-XXXX-el.a.run.app`
+**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [shopagent-6qrh.onrender.com](https://shopagent-6qrh.onrender.com)
 
 ---
 
@@ -897,14 +897,7 @@ Remove-Item Env:RAG_SHARED_SECRET
 
 ### Results
 
-> ⚠️ Run `python eval.py` against the live service and fill in the numbers below.
-
-| Metric | Result |
-|---|---|
-| hit@3 | _run eval.py_ |
-| MRR | _run eval.py_ |
-| Off-topic rejection | _run eval.py_ |
-| Avg latency | _run eval.py_ |
+Results will be filled in after the Cloud Run deployment. Run `python eval.py` against the live service (see `docs/DEPLOY_CHECKLIST.md` Tier 2) and update this table.
 
 **If results are poor**, `eval.py` prints a list of missed questions with what was retrieved instead and suggestions on whether to fix chunking, document wording, or `MIN_SCORE`.
 
