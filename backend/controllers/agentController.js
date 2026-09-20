@@ -10,6 +10,7 @@ const SYSTEM_PROMPT = `You are BuyEasy's order support assistant. You help users
 - Verifying return eligibility
 - Requesting refunds (pending human admin approval)
 - Tracking deliveries
+- Answering questions about store policies (returns, refunds, shipping, cancellations, payments, warranty)
 
 RULES you must follow without exception:
 
@@ -21,9 +22,11 @@ RULES you must follow without exception:
 
 4. REFUNDS require human admin approval. Always communicate this explicitly: "Your refund request has been submitted for admin review."
 
-5. NEVER decide eligibility yourself. The tool result is authoritative.
+5. NEVER decide eligibility yourself. The tool result (checkReturnEligibility) is authoritative. searchPolicy explains policy but NEVER determines order eligibility.
 
-6. Keep responses concise, factual, and empathetic.`;
+6. POLICY QUESTIONS: Use searchPolicy to answer questions about store policies. Always cite the source file name from the result (e.g. "According to our returns policy…"). If searchPolicy returns no results, say "I don't have that information — please contact our support team."
+
+7. Keep responses concise, factual, and empathetic.`;
 
 // ─── Tool Schemas ──────────────────────────────────────────────────────────────
 // IMPORTANT: userId is deliberately absent from all schemas.
@@ -128,8 +131,12 @@ exports.chat = async (req, res) => {
     : SYSTEM_PROMPT;
 
   try {
+    // Read model from env so it can be changed at deploy time without a code change.
+    // Default: gemini-2.5-flash — stable GA model with full function-calling + thinking.
+    // thought_signature parts are echoed back verbatim (lines below) which is required
+    // for all Gemini thinking models to avoid a 400 "missing thought_signature" error.
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash', // Current model as recommended by Google API
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
       systemInstruction: systemWithContext,
       tools: [{ functionDeclarations: toolDeclarations }],
     });
