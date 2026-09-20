@@ -6,6 +6,57 @@
 
 ---
 
+## Five-minute pre-flight (do this before Tier 1)
+
+### [ ] P.1 Confirm `deploy.yml` order and guards
+
+Open [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) and verify:
+- `test` job runs on every push/PR (no `if:` guard) ✅
+- `deploy-rag` has `needs: test` and `if: github.ref == 'refs/heads/main' && github.event_name == 'push'` ✅
+- `deploy` has `needs: [test, deploy-rag]` — RAG always deploys before the API ✅
+- Both deploy jobs have `HAS_KEY: ${{ secrets.GCP_SA_KEY != '' }}` and every GCP step has `if: env.HAS_KEY == 'true'` ✅
+
+This file was already verified as correct by the last session.
+
+### [ ] P.2 Verify every `"source"` in `eval_set.json` is a real filename
+
+The 6 real policy doc filenames are:
+`returns.md` `refunds.md` `shipping.md` `cancellations.md` `payments.md` `warranty.md`
+
+All 40 items in [`rag-service/eval_set.json`](../rag-service/eval_set.json) were audited —
+no `orders.md` or other phantom filenames remain. The 4 multi-doc list entries all
+use subsets of the 6 valid names.
+
+Spot-check: rewrite 2–3 of the informal questions in your own words so they reflect
+how *your* customers ask (the AI guessed; you know better).
+
+### [ ] P.3 Build both Docker images locally
+
+> **Start Docker Desktop first.** Wait for the whale icon to turn solid in the taskbar.
+
+```powershell
+# API image (builds from project root Dockerfile)
+docker build -t shopagent-api .
+# Expected last line: Successfully tagged shopagent-api:latest
+
+# RAG service image
+docker build -t shopagent-rag ./rag-service
+# Expected last line: Successfully tagged shopagent-rag:latest
+```
+
+If either build fails, fix it before deploying — `gcloud run deploy --source` uses
+the same Dockerfile, so a local build failure = a Cloud Run failure.
+
+Optional smoke test (replace values):
+```powershell
+docker run --rm -e MONGO_URI="placeholder" -e JWT_SECRET="x" `
+  -e GEMINI_API_KEY="placeholder" -p 8080:8080 shopagent-api &
+Start-Sleep 3
+curl.exe http://localhost:8080/health   # expected: {"status":"ok"}
+```
+
+---
+
 ## Before you start — one-time setup
 
 ```powershell
@@ -126,16 +177,31 @@ Copy the API URL — looks like `https://shopagent-api-xxxx-el.a.run.app`.
 
 ---
 
-### [ ] 1.5 Wire `RAG_SERVICE_URL` (already done above, verify)
+### [ ] 1.5 Verify both services are really working (don't stop at `/health`)
 
-The API deploy above sets `RAG_SERVICE_URL` via `--set-env-vars`. Confirm:
+> ⚠️ **Important:** `/health` returns `{"status":"ok"}` even when the database is
+> completely broken — the server keeps running intentionally so Cloud Run's liveness
+> probe doesn't kill the container. Always also hit a real route to confirm the Atlas
+> connection is live.
 
 ```powershell
 $API_URL = "https://shopagent-api-xxxx-el.a.run.app"   # paste from step 1.4
+
+# Liveness probe (no DB involved — always passes if the container started)
 curl.exe "$API_URL/health"
+# Expected: {"status":"ok"}
+
+# Real DB route — this proves Atlas is reachable and the MONGO_URI secret is correct
+curl.exe "$API_URL/api/products"
+# Expected: JSON array of products (same data Render serves — Atlas already has it)
+# If this hangs, times out, or returns a 500:
+#   1. Open Cloud Run → Logs and filter for  [DB]
+#   2. The log line will say: '[DB] MongoDB connection failed...'
+#      and remind you to check MONGO_URI or Atlas Network Access (0.0.0.0/0)
 ```
 
-**Expected:** `{"status":"ok"}`
+If `/api/products` returns products but `/api/agent` returns errors, check
+`GEMINI_API_KEY` or `GEMINI_MODEL`. If it returns `403 CORS`, check `FRONTEND_URL`.
 
 If you need to update `RAG_SERVICE_URL` later without a full redeploy:
 
