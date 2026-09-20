@@ -127,3 +127,94 @@ describe('Idempotency: approval cannot create duplicate refund', () => {
     expect(toolsSource).toMatch(/PendingApproval\.findOne/);
   });
 });
+
+// ─── searchPolicy Tests ────────────────────────────────────────────────────────
+describe('searchPolicy: schema, dispatch, and graceful failure', () => {
+
+  // Test 10: searchPolicy tool schema does not include userId
+  test('searchPolicy schema has no userId parameter', () => {
+    const controllerSrc = require('fs')
+      .readFileSync(require('path').join(__dirname, '../controllers/agentController.js'), 'utf8');
+    // The searchPolicy declaration should exist
+    expect(controllerSrc).toMatch(/name:\s*'searchPolicy'/);
+    // Its parameters must NOT include userId
+    // We verify userId is absent from the full schema block
+    const schemaBlock = controllerSrc.match(/name:\s*'searchPolicy'[\s\S]*?required:\s*\[[\s\S]*?\]/)?.[0] || '';
+    expect(schemaBlock).not.toMatch(/userId/);
+    expect(schemaBlock).not.toMatch(/authenticatedUserId/);
+  });
+
+  // Test 11: searchPolicy is in the toolMap dispatch allowlist
+  test('searchPolicy is in the toolMap and will not be rejected as unknown', () => {
+    const controllerSrc = require('fs')
+      .readFileSync(require('path').join(__dirname, '../controllers/agentController.js'), 'utf8');
+    expect(controllerSrc).toMatch(/searchPolicy/);
+    // The toolMap object must include searchPolicy as a key
+    expect(controllerSrc).toMatch(/searchPolicy:\s*\(args\)/);
+  });
+
+  // Test 12: searchPolicy is exported from agentTools
+  test('agentTools exports searchPolicy', () => {
+    const toolsModule = require('../services/agentTools');
+    expect(typeof toolsModule.searchPolicy).toBe('function');
+  });
+
+  // Test 13: searchPolicy returns graceful fallback when RAG service is unavailable
+  test('searchPolicy returns {results:[], error:"policy_search_unavailable"} when RAG not configured', async () => {
+    // Save and clear env vars so the service is "not configured"
+    const savedUrl    = process.env.RAG_SERVICE_URL;
+    const savedSecret = process.env.RAG_SHARED_SECRET;
+    delete process.env.RAG_SERVICE_URL;
+    delete process.env.RAG_SHARED_SECRET;
+
+    // Re-require to get the current module state, but since env is read at call time, just call directly
+    const { searchPolicy } = require('../services/agentTools');
+    const result = await searchPolicy('What is the return policy?');
+
+    expect(result.results).toEqual([]);
+    expect(result.error).toBe('policy_search_unavailable');
+
+    // Restore env
+    if (savedUrl)    process.env.RAG_SERVICE_URL    = savedUrl;
+    if (savedSecret) process.env.RAG_SHARED_SECRET  = savedSecret;
+  });
+
+  // Test 14: searchPolicy returns graceful fallback on fetch failure (mocked timeout)
+  test('searchPolicy returns graceful fallback when fetch throws (timeout/network error)', async () => {
+    process.env.RAG_SERVICE_URL    = 'http://localhost:9999'; // nothing listening here
+    process.env.RAG_SHARED_SECRET  = 'test-secret';
+
+    // Mock global fetch to simulate a network error
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockRejectedValue(new Error('fetch failed'));
+
+    const { searchPolicy } = require('../services/agentTools');
+    const result = await searchPolicy('What items cannot be returned?');
+
+    expect(result.results).toEqual([]);
+    expect(result.error).toBe('policy_search_unavailable');
+
+    global.fetch = originalFetch;
+    delete process.env.RAG_SERVICE_URL;
+    delete process.env.RAG_SHARED_SECRET;
+  });
+
+  // Test 15: AgentActionLog schema accepts 'searchPolicy' as a valid action value
+  test("AgentActionLog action enum includes 'searchPolicy'", () => {
+    const logSrc = require('fs')
+      .readFileSync(require('path').join(__dirname, '../models/AgentActionLog.js'), 'utf8');
+    expect(logSrc).toMatch(/'searchPolicy'/);
+  });
+});
+
+// ─── MAX_TOOL_CALLS cap ────────────────────────────────────────────────────────
+describe('Safety: MAX_TOOL_CALLS cap is unchanged', () => {
+
+  // Test 16: MAX_TOOL_CALLS is still 5 in the controller
+  test('MAX_TOOL_CALLS is 5 in agentController', () => {
+    const controllerSrc = require('fs')
+      .readFileSync(require('path').join(__dirname, '../controllers/agentController.js'), 'utf8');
+    expect(controllerSrc).toMatch(/MAX_TOOL_CALLS\s*=\s*5/);
+  });
+});
+
