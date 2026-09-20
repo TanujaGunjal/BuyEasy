@@ -152,7 +152,9 @@ exports.chat = async (req, res) => {
 
   try {
     // Read model from env so it can be changed at deploy time without a code change.
-    // Default: gemini-2.5-flash — stable GA model with full function-calling + thinking.
+    // Default: gemini-2.5-flash — GA model, supports function-calling and thinking.
+    // No shutdown date is currently listed on ai.google.dev/gemini-api/docs/deprecations.
+    // Override with GEMINI_MODEL env var to upgrade without redeploying.
     // thought_signature parts are echoed back verbatim (lines below) which is required
     // for all Gemini thinking models to avoid a 400 "missing thought_signature" error.
     const model = genAI.getGenerativeModel({

@@ -450,7 +450,7 @@ Response: `{ "reply": "...", "lastOrderId": "..." }`
 
 ## 7. AI Agent Design
 
-**Model:** `gemini-2.0-flash` via `@google/generative-ai` (function-calling mode).
+**Model:** `gemini-2.5-flash` (default) via `@google/generative-ai`, overridable via `GEMINI_MODEL` env var. No shutdown date is currently listed for this model on the Gemini deprecations page.
 
 ### Tool Schemas
 
