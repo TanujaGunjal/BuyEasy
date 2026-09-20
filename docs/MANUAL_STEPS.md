@@ -294,6 +294,28 @@ Fill in the real hit@3, MRR, and off-topic rejection numbers in README.md.
 
 ---
 
+## Step 13 — Smoke test the Gemini model (run after any GEMINI_MODEL change)
+
+Any time you change the `GEMINI_MODEL` env var (e.g. upgrading to a newer GA model),
+run this smoke script **before** deploying to Cloud Run to confirm:
+- The model is reachable with your API key
+- It returns a `functionCall` part (function-calling is working)
+- It handles the two-turn pattern (tool result → text reply) correctly
+- It does NOT throw 404 "model not available"
+
+```bash
+# From the project root
+export GEMINI_API_KEY=<your-key>
+export GEMINI_MODEL=gemini-2.5-flash   # or whichever model you want to test
+npm run smoke:gemini
+```
+
+Expected output ends with `RESULT: PASS ✓`. If it shows `FAIL`, check the error
+message — a 404 means the model ID is wrong or the model has been retired.
+
+---
+
+
 ## Known Limitations
 
 ### 🗂️ Multer local-disk uploads (ephemeral filesystem)
