@@ -3,11 +3,11 @@
 > MERN stack e-commerce platform featuring a **Gemini AI support agent** with function-calling, **Stripe payment & refund integration**, and a **human-in-the-loop admin approval workflow** — built on Node.js, Express, React, and MongoDB.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-50%20passed-brightgreen)](#-test-suite)
+[![Tests](https://img.shields.io/badge/tests-58%20passed-brightgreen)](#-test-suite)
 [![Node](https://img.shields.io/badge/Node.js-v18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-v18-61DAFB?logo=react&logoColor=black)](https://reactjs.org)
 
-**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [shopagent-6qrh.onrender.com](https://shopagent-6qrh.onrender.com)
+**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [shopagent-6qrh.onrender.com](https://shopagent-6qrh.onrender.com) *(Render)* / Cloud Run URL: fill in after deploy → `shopagent-api-XXXX-el.a.run.app`
 
 ---
 
@@ -868,18 +868,16 @@ Agent narrates answer, cites source filename
 
 A retrieval evaluation harness is included at `rag-service/eval.py`.
 
-### How to run
+### How to run (PowerShell)
 
-```bash
-# 1. Start (or have deployed) the RAG service
-# 2. Set environment variables
-export RAG_SERVICE_URL=https://shopagent-rag-xxxx-el.a.run.app
-export RAG_SHARED_SECRET=<your-secret>
+```powershell
+$env:RAG_SERVICE_URL   = "https://shopagent-rag-XXXX-el.a.run.app"  # fill in after deploy
+$env:RAG_SHARED_SECRET = "your-rag-shared-secret"
 
-# 3. Run evaluation
-cd rag-service
-pip install requests
 python eval.py
+
+Remove-Item Env:RAG_SERVICE_URL
+Remove-Item Env:RAG_SHARED_SECRET
 ```
 
 ### Metrics reported
@@ -893,9 +891,9 @@ python eval.py
 
 ### Eval set (`eval_set.json`)
 
-30 items total:
-- **25 in-scope** questions phrased as real customer language, spread across all 6 policy documents
-- **5 off-topic** questions (weather, coding help, sports, etc.) that should return no results
+40 items total:
+- **35 in-scope** questions — formal and informal/typo phrasing, spread across all 6 policy documents; 4 questions have `"source"` as a list (answer spans two docs, either accepted as a hit)
+- **5 off-topic** questions (weather, coding help, sports, etc.) that should return 0 results
 
 ### Results
 
