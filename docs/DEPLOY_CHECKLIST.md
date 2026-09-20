@@ -144,17 +144,61 @@ foreach ($secret in @("MONGO_URI","JWT_SECRET","STRIPE_SECRET_KEY","GEMINI_API_K
 
 Deploy RAG first so its URL is available when the API service starts.
 
+> **Auth flag:** Use `--allow-unauthenticated`. The RAG service is protected by the
+> `X-Internal-Key` shared secret — that is the application-level auth. Cloud Run IAM
+> (`--no-allow-unauthenticated`) would require a Google identity token that the Node API
+> and `eval.py` do not send, causing a silent 403 before the request reaches FastAPI.
+
+> **`--min-instances 1`** keeps one instance warm so the first `searchPolicy` call during
+> your demo doesn't pay a cold start + embedding call (~5–8 s). It costs ~$2–5/month.
+> After your interviews: `gcloud run services update shopagent-rag --region asia-south1 --min-instances 0`
+
 ```powershell
 gcloud run deploy shopagent-rag `
   --source ./rag-service `
   --region asia-south1 `
-  --no-allow-unauthenticated `
+  --allow-unauthenticated `
+  --min-instances 1 `
   --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,MONGO_URI=MONGO_URI:latest,RAG_SHARED_SECRET=RAG_SHARED_SECRET:latest"
 ```
 
 **Expected output (last line):** `Service [shopagent-rag] revision [...] has been deployed`
 
 Copy the service URL from the output — looks like `https://shopagent-rag-xxxx-el.a.run.app`.
+
+---
+
+### [ ] 1.3b Test the RAG service directly (before deploying the API)
+
+Do this after `ingest.py` has run and the Atlas vector index is **Active**.
+This catches problems before they hide inside the Node API.
+
+```powershell
+$RAG_URL = "https://shopagent-rag-xxxx-el.a.run.app"   # paste from step 1.3
+$env:RAG_SHARED_SECRET = "your-rag-shared-secret"       # the value from Secret Manager
+
+# Liveness probe
+curl.exe "$RAG_URL/health"
+# Expected: {"status":"ok"}
+
+# Real search call
+Invoke-RestMethod -Method Post -Uri "$RAG_URL/search" `
+  -Headers @{ "X-Internal-Key" = $env:RAG_SHARED_SECRET } `
+  -ContentType "application/json" `
+  -Body '{"question":"can I return food items","k":3}'
+# Expected: object with a 'results' array containing items with source, heading, score
+
+Remove-Item Env:RAG_SHARED_SECRET
+```
+
+**If it fails:**
+
+| Error | Cause | Fix |
+|---|---|---|
+| Google-styled HTML 403 page | Cloud Run is blocking — service not public | Redeploy with `--allow-unauthenticated` |
+| JSON `{"detail":"Unauthorized"}` (401) | Secret mismatch — header value ≠ env var | Confirm both use the same Secret Manager version |
+| `{"results":[]}` (empty) | Index not Active, or `ingest.py` not run, or `MIN_SCORE` too high | Check Atlas Search tab status; re-run `ingest.py`; try `--set-env-vars MIN_SCORE=0.5` |
+| Connection refused / timeout | Wrong URL or service not yet deployed | Check `gcloud run services list --region asia-south1` |
 
 ---
 
