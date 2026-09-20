@@ -30,12 +30,14 @@ use subsets of the 6 valid names.
 Spot-check: rewrite 2–3 of the informal questions in your own words so they reflect
 how *your* customers ask (the AI guessed; you know better).
 
-### [ ] P.3 Build both Docker images locally
+### [ ] P.3 Build both Docker images locally (optional if deploying to Azure)
 
-> **Start Docker Desktop first.** Wait for the whale icon to turn solid in the taskbar.
+> `az containerapp up --source` builds your Dockerfile in Azure Cloud Build, so you
+> **don't need Docker Desktop running** for the Azure path.
+> Only do this step if you want faster local feedback, or if you're deploying to GCP.
 
 ```powershell
-# API image (builds from project root Dockerfile)
+# API image
 docker build -t shopagent-api .
 # Expected last line: Successfully tagged shopagent-api:latest
 
@@ -44,8 +46,8 @@ docker build -t shopagent-rag ./rag-service
 # Expected last line: Successfully tagged shopagent-rag:latest
 ```
 
-If either build fails, fix it before deploying — `gcloud run deploy --source` uses
-the same Dockerfile, so a local build failure = a Cloud Run failure.
+If either build fails, fix it before deploying — both `az containerapp up` and
+`gcloud run deploy --source` use the same Dockerfile.
 
 Optional smoke test (replace values):
 ```powershell
@@ -57,27 +59,264 @@ curl.exe http://localhost:8080/health   # expected: {"status":"ok"}
 
 ---
 
-## Before you start — one-time setup
+## Choose your cloud platform
+
+| | Azure Container Apps (Tier 1-A) | Google Cloud Run (Tier 1-B) |
+|---|---|---|
+| **CLI** | `az containerapp up --source` | `gcloud run deploy --source` |
+| **Docker Desktop needed?** | No — builds in Azure | No — builds in Cloud Build |
+| **Free credit** | Azure for Students (~$100, check with spit.ac.in email) | $300 trial (credit card required) |
+| **JD alignment** | AZ-900 / AI-900 named in JD | GCP is fine too |
+| **Secrets** | Container Apps secrets + `secretref:` | Secret Manager + `--set-secrets` |
+| **Logs** | Log Analytics — `ContainerAppConsoleLogs_CL` | Cloud Logging — Cloud Run Logs tab |
+
+**Start with Tier 1-A (Azure).** If `az containerapp up` fails with an error you can't resolve, fall back to Tier 1-B (GCP).
+
+---
+
+## Tier 1-A — Get it live on Azure Container Apps
+
+Work through these in order. Replace every `<...>` with your real value.
+Install the Azure CLI first if needed: `winget install Microsoft.AzureCLI`
+
+### [ ] A.0 One-time Azure setup
 
 ```powershell
-# Install gcloud CLI (if not already installed)
-# https://cloud.google.com/sdk/docs/install-sdk
+az login
+az extension add --name containerapp --upgrade
+az provider register --namespace Microsoft.App --wait
+az provider register --namespace Microsoft.OperationalInsights --wait
 
-# Authenticate and set your project
+az group create --name shopagent-rg --location centralindia
+az containerapp env create --name shopagent-env `
+  --resource-group shopagent-rg --location centralindia
+```
+
+**Expected:** `"provisioningState": "Succeeded"` on the last command.
+
+---
+
+### [ ] A.1 Deploy the RAG service first
+
+```powershell
+az containerapp up --name shopagent-rag --resource-group shopagent-rg `
+  --environment shopagent-env --source ./rag-service `
+  --ingress external --target-port 8080
+```
+
+> The first revision may crash-loop because the app reads secrets at startup.
+> That’s expected. Set the secrets in the next command and it recovers automatically.
+
+```powershell
+# Set secrets (values from your .env — do not paste into shared terminal history)
+az containerapp secret set --name shopagent-rag --resource-group shopagent-rg --secrets `
+  gemini-key=<GEMINI_API_KEY> `
+  mongo-uri=<MONGO_URI> `
+  rag-secret=<RAG_SHARED_SECRET>
+
+# Wire secrets as env vars + keep one warm instance for interview week
+az containerapp update --name shopagent-rag --resource-group shopagent-rg `
+  --min-replicas 1 `
+  --set-env-vars `
+    GEMINI_API_KEY=secretref:gemini-key `
+    MONGO_URI=secretref:mongo-uri `
+    RAG_SHARED_SECRET=secretref:rag-secret
+```
+
+**Expected:** revision status shows `Running`.
+
+> After your interviews: `az containerapp update --name shopagent-rag --resource-group shopagent-rg --min-replicas 0`
+
+Get the RAG URL:
+```powershell
+$RAG_URL = "https://" + (az containerapp show `
+  --name shopagent-rag --resource-group shopagent-rg `
+  --query properties.configuration.ingress.fqdn -o tsv)
+Write-Host $RAG_URL
+```
+
+---
+
+### [ ] A.2 Atlas Network Access + vector index + ingest
+
+Same as the GCP path — no Azure-specific changes:
+
+1. **Atlas Network Access** → `+ ADD IP ADDRESS` → `0.0.0.0/0` → wait for **Active**
+2. **Search** tab → `+ Create Search Index` → JSON editor → database `buyeasy`, collection `policy_chunks`, name `policy_vector_index`:
+```json
+{"fields":[{"type":"vector","path":"embedding","numDimensions":768,"similarity":"cosine"}]}
+```
+3. Wait for index status **Active** (1–3 min).
+4. Run ingest:
+```powershell
+rag-service\.venv\Scripts\Activate.ps1   # create with: python -m venv rag-service\.venv
+pip install -r rag-service\requirements.txt
+
+$env:GEMINI_API_KEY = "<your-key>"
+$env:MONGO_URI      = "<your-atlas-uri>"
+python rag-service\ingest.py
+Remove-Item Env:GEMINI_API_KEY, Env:MONGO_URI
+```
+**Expected last line:** `Indexed N chunks into policy_chunks`
+
+---
+
+### [ ] A.3 Test the RAG service directly (before deploying the API)
+
+```powershell
+$env:RAG_SHARED_SECRET = "<your-rag-shared-secret>"
+
+curl.exe "$RAG_URL/health"
+# Expected: {"status":"ok"}
+
+Invoke-RestMethod -Method Post -Uri "$RAG_URL/search" `
+  -Headers @{ "X-Internal-Key" = $env:RAG_SHARED_SECRET } `
+  -ContentType "application/json" `
+  -Body '{"question":"can I return food items","k":3}'
+# Expected: object with results array containing source, heading, score
+
+Remove-Item Env:RAG_SHARED_SECRET
+```
+
+| Error | Cause | Fix |
+|---|---|---|
+| Google/Azure HTML 403 | Service not public | Redeploy with `--ingress external` |
+| JSON 401 `{"detail":"Unauthorized"}` | Secret mismatch | Both services must use same RAG_SHARED_SECRET value |
+| `{"results":[]}` empty | Index not Active or ingest not run | Check Atlas Search tab; re-run ingest; try lower MIN_SCORE |
+| Timeout / connection refused | Wrong URL | Confirm `$RAG_URL` with `az containerapp show` |
+
+---
+
+### [ ] A.4 Deploy the API service
+
+```powershell
+az containerapp up --name shopagent-api --resource-group shopagent-rg `
+  --environment shopagent-env --source . `
+  --ingress external --target-port 8080
+```
+
+```powershell
+az containerapp secret set --name shopagent-api --resource-group shopagent-rg --secrets `
+  mongo-uri=<MONGO_URI> `
+  jwt-secret=<JWT_SECRET> `
+  stripe-key=<STRIPE_SECRET_KEY> `
+  gemini-key=<GEMINI_API_KEY> `
+  email-user=<EMAIL_USER> `
+  email-pass=<EMAIL_PASS> `
+  rag-secret=<RAG_SHARED_SECRET>
+
+az containerapp update --name shopagent-api --resource-group shopagent-rg `
+  --min-replicas 1 `
+  --set-env-vars `
+    NODE_ENV=production `
+    GEMINI_MODEL=gemini-2.5-flash `
+    FRONTEND_URL=https://frontend-nine-zeta-53.vercel.app `
+    RAG_SERVICE_URL=$RAG_URL `
+    JWT_EXPIRE=30d `
+    STRIPE_PUBLISHABLE_KEY=<pk_test_...> `
+    EMAIL_HOST=smtp.gmail.com `
+    EMAIL_PORT=587 `
+    FROM_NAME=BuyEasy `
+    FROM_EMAIL=noreply@buyeasy.com `
+    MONGO_URI=secretref:mongo-uri `
+    JWT_SECRET=secretref:jwt-secret `
+    STRIPE_SECRET_KEY=secretref:stripe-key `
+    GEMINI_API_KEY=secretref:gemini-key `
+    EMAIL_USER=secretref:email-user `
+    EMAIL_PASS=secretref:email-pass `
+    RAG_SHARED_SECRET=secretref:rag-secret
+```
+
+Get the API URL:
+```powershell
+$API_URL = "https://" + (az containerapp show `
+  --name shopagent-api --resource-group shopagent-rg `
+  --query properties.configuration.ingress.fqdn -o tsv)
+Write-Host $API_URL
+```
+
+---
+
+### [ ] A.5 Verify both services are really working
+
+> ⚠️ `/health` returns `{"status":"ok"}` even when MongoDB is unreachable.
+> Always also check `/api/products` — that proves Atlas is live.
+
+```powershell
+curl.exe "$API_URL/health"
+# Expected: {"status":"ok"}
+
+curl.exe "$API_URL/api/products"
+# Expected: JSON array of products
+# If 500 or timeout — open Azure Portal → shopagent-api → Log stream
+# Search for [DB] — the line will say why MongoDB failed
+```
+
+**Azure Logs (when you need them):**
+Portal → shopagent-env (Container Apps Environment) → **Logs** → run:
+```kusto
+ContainerAppConsoleLogs_CL
+| where ContainerName_s == "shopagent-api"
+| where Log_s contains "[DB]"
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+| take 20
+```
+
+---
+
+### [ ] A.6 Point Vercel at the Azure API
+
+In Vercel Dashboard → Project Settings → Environment Variables:
+
+| Name | Value |
+|---|---|
+| `REACT_APP_API_URL` | `https://<shopagent-api-fqdn>/api` |
+| `REACT_APP_STRIPE_PUBLISHABLE_KEY` | `pk_test_...` |
+
+Then **Deployments → Redeploy** the latest.
+
+---
+
+### [ ] A.7 Live end-to-end test
+
+```
+[ ] Ask: "What is your return policy?"  → agent answers from RAG, not "I don't know"
+[ ] Ask: "I want a refund for my order" → PendingApproval created in DB
+[ ] Admin: approve the refund            → 200 with refund info
+[ ] Admin: approve again immediately      → 409 {"message":"Already processed"}
+```
+
+---
+
+### [ ] A.8 Update README live demo line
+
+Once deployed, replace the Render link with the Azure URL:
+
+```powershell
+# Get the line to paste into README.md line 10:
+Write-Host "**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [$API_URL]($API_URL) (Azure Container Apps)"
+```
+
+---
+
+## Tier 1-B — Get it live on Google Cloud Run (alternative)
+
+> Use this if you have a GCP account with $300 trial credit, or if Azure setup fails.
+> The GCP steps assume your project ID is already set.
+
+### One-time GCP setup
+
+```powershell
 gcloud auth login
-gcloud config set project <FILL_ME>   # replace with your GCP project ID
+gcloud config set project <FILL_ME>   # your GCP project ID
 
-# Enable required APIs (one-time)
 gcloud services enable `
   run.googleapis.com `
   secretmanager.googleapis.com `
   cloudbuild.googleapis.com `
   artifactregistry.googleapis.com
 ```
-
----
-
-## Tier 1 — Get it live
 
 Work through these in order. Each step has a checkbox and the expected output.
 
