@@ -17,6 +17,7 @@ const AgentActionLogSchema = new mongoose.Schema({
       'searchPolicy',
       'refundApproved',
       'refundRejected',
+      'refundFailed',   // written by adminApprovals.js when Stripe rejects the refund
     ],
   },
   // String not ObjectId — the order may not exist (bad user input)

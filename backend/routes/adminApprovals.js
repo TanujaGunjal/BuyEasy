@@ -69,16 +69,25 @@ router.put('/pending-approvals/:id/approve', async (req, res, next) => {
         pendingApproval.reason
       );
     } catch (refundErr) {
-      // Stripe failure: log it and return a clear error — do NOT mark as approved
-      await AgentActionLog.create({
-        userId: pendingApproval.userId,
-        action: 'refundFailed',
-        orderId: pendingApproval.orderId,
-        params: { approvedBy: req.user.id },
-        result: { error: refundErr.message },
-        status: 'FAILED',
-        approvedBy: req.user.id,
-      });
+      // Stripe failure: log it and return a clear error — do NOT mark as approved.
+      // PendingApproval status stays 'pending' so the admin can retry the refund.
+      //
+      // Audit write is wrapped separately: if it fails (e.g. validation error),
+      // we log server-side but swallow it — the original 502 response must still go out.
+      try {
+        await AgentActionLog.create({
+          userId: pendingApproval.userId,
+          action: 'refundFailed',
+          orderId: pendingApproval.orderId,
+          params: { approvedBy: req.user.id },
+          result: { error: refundErr.message },
+          status: 'FAILED',
+          approvedBy: req.user.id,
+        });
+      } catch (auditErr) {
+        // Audit write failed — log it but do NOT let it change the error response
+        console.error('[AdminApprovals] Failed to write refundFailed audit log:', auditErr.message);
+      }
       return res.status(502).json({
         success: false,
         message: `Refund failed: ${refundErr.message}`,

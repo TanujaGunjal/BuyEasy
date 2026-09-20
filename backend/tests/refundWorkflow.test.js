@@ -117,3 +117,54 @@ describe('Refund Workflow: Stripe integration architecture', () => {
     expect(src).toMatch(/409/);
   });
 });
+
+// --- Step 4: refundFailed audit-log bug fixes ---
+describe('Step 4: refundFailed enum and audit isolation', () => {
+
+  // Test 4a: AgentActionLog action enum now includes refundFailed
+  test('AgentActionLog action enum includes refundFailed', () => {
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '../models/AgentActionLog.js'), 'utf8'
+    );
+    expect(src).toMatch(/'refundFailed'/);
+  });
+
+  // Test 4b: status 'FAILED' is already valid in the status enum (no regression)
+  test('AgentActionLog status enum includes FAILED', () => {
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '../models/AgentActionLog.js'), 'utf8'
+    );
+    expect(src).toMatch(/'FAILED'/);
+  });
+
+  // Test 4c: adminApprovals audit write is inside a nested try-catch
+  // so an audit failure cannot change the HTTP response code
+  test('adminApprovals wraps AgentActionLog.create in try-catch to isolate audit failures', () => {
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '../routes/adminApprovals.js'), 'utf8'
+    );
+    // Must have nested try-catch around the create call
+    expect(src).toMatch(/try\s*\{[\s\S]*?AgentActionLog\.create[\s\S]*?\}\s*catch\s*\(auditErr\)/);
+    // The audit error must be console.error'd but NOT re-thrown
+    expect(src).toMatch(/console\.error.*auditErr/);
+    // The 502 response must still be returned after the audit try-catch
+    expect(src).toMatch(/res\.status\(502\)/);
+  });
+
+  // Test 4d: PendingApproval status is NOT changed when Stripe fails
+  // (admin can retry; status stays 'pending')
+  test('adminApprovals does not change PendingApproval status on Stripe failure', () => {
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '../routes/adminApprovals.js'), 'utf8'
+    );
+    // The assignment pendingApproval.status = 'approved' must NOT appear
+    // inside the refundErr catch block — it only appears in the success path
+    // We verify this by checking the catch block does not set status to approved
+    const refundErrBlock = src.match(
+      /catch\s*\(refundErr\)\s*\{[\s\S]*?return res\.status\(502\)/
+    )?.[0] || '';
+    expect(refundErrBlock).not.toMatch(/pendingApproval\.status\s*=\s*'approved'/);
+    expect(refundErrBlock.length).toBeGreaterThan(0);
+  });
+});
+
