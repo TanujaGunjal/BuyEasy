@@ -101,8 +101,10 @@ const server = app.listen(PORT, () => {
   `);
 });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err, promise) => {
-  console.log(`Error: ${err.message}`);
-  server.close(() => process.exit(1));
+// Handle unhandled promise rejections — log loudly but keep the server running.
+// Cloud Run's liveness probe hits /health; killing the process on every rejection
+// would cause unnecessary container restarts and hide the real root cause.
+// If the rejection is a fatal DB error, db.js already logs it with guidance.
+process.on('unhandledRejection', (err) => {
+  console.error('[Server] Unhandled promise rejection:', err.message);
 });
