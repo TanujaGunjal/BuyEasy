@@ -1,9 +1,9 @@
-# BuyEasy — Full-Stack E-Commerce with AI Support Agent
+# ShopAgent — Full-Stack E-Commerce with AI Support Agent
 
 > MERN stack e-commerce platform featuring a **Gemini AI support agent** with function-calling, **Stripe payment & refund integration**, and a **human-in-the-loop admin approval workflow** — built on Node.js, Express, React, and MongoDB.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-43%20passed-brightgreen)](#-test-suite)
+[![Tests](https://img.shields.io/badge/tests-50%20passed-brightgreen)](#-test-suite)
 [![Node](https://img.shields.io/badge/Node.js-v18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-v18-61DAFB?logo=react&logoColor=black)](https://reactjs.org)
 
@@ -34,43 +34,46 @@
 ## 1. Architecture Overview
 
 ```
-+-------------------------------------------------------------+
-|                     React Frontend (CRA)                    |
-|  ChatWidget -> /api/agent/chat   StripeCheckout -> Stripe.js|
-+---------------------------+---------------------------------+
-                            | HTTP / REST (Axios)
-+---------------------------v---------------------------------+
-|                   Express.js Backend (Node 18)             |
-|                                                            |
-|  +-------------+  +-------------+  +-----------------+    |
-|  | Auth (JWT)  |  |  REST APIs  |  | Agent Controller|    |
-|  +-------------+  +-------------+  +--------+--------+    |
-|                                             |              |
-|  +-----------------------------------------v----------+   |
-|  |              services/agentTools.js                 |   |
-|  |  getOrderStatus  checkReturnEligibility             |   |
-|  |  initiateRefund  getDeliveryEstimate                |   |
-|  +----------------------------+------------------------+   |
-|                               |                            |
-|  +----------------------------v------------------------+   |
-|  |        services/policyEngine.js (deterministic)     |   |
-|  +-----------------------------------------------------+   |
-|                                                            |
-|  +------------------------------------------------------+  |
-|  | routes/adminApprovals.js -> services/refundService.js|  |
-|  | (Admin only -- calls Stripe AFTER human approval)    |  |
-|  +------------------------------------------------------+  |
-+----------+-----------------------------------+--------------+
-           |                                   |
-    +------v------+                   +--------v------+
-    |  MongoDB    |                   |  Stripe API   |
-    |  (Atlas)    |                   |  (test mode)  |
-    +-------------+                   +---------------+
-           |
-    +------v------+
-    | Google AI   |
-    | Gemini API  |
-    +-------------+
++----------------------------------------------------------+
+|           React Frontend (CRA) — Vercel                  |
+|  ChatWidget -> /api/agent/chat   StripeCheckout          |
++---------------------------+------------------------------+
+                            | HTTPS / REST
++---------------------------v------------------------------+
+|         Express.js API — Cloud Run (shopagent-api)       |
+|                                                          |
+|  +-----------+  +-------------+  +------------------+   |
+|  | Auth(JWT) |  |  REST APIs  |  | Agent Controller |   |
+|  +-----------+  +-------------+  +--------+---------+   |
+|                                           |              |
+|  +----------------------------------------v-----------+ |
+|  |              services/agentTools.js (5 tools)       | |
+|  | getOrderStatus  checkReturnEligibility              | |
+|  | initiateRefund  getDeliveryEstimate  searchPolicy   | |
+|  +----------+----------------------------+-------------+ |
+|             |                            |               |
+|  +----------v-----------+    +----------v-------------+  |
+|  | policyEngine.js      |    | RAG service (HTTP)     |  |
+|  | (deterministic)      |    | X-Internal-Key auth    |  |
+|  +----------------------+    +------------------------+  |
+|                                                          |
+|  +------------------------------------------------------+|
+|  | adminApprovals.js -> refundService.js                ||
+|  | (Admin only — calls Stripe AFTER human approval)     ||
+|  +------------------------------------------------------+|
++---+----------------------------+-------------------------+
+    |                            |
++---v---------+     +-----------v------------------------+
+| MongoDB     |     |  Python RAG — Cloud Run            |
+| Atlas       |     |  (shopagent-rag)                   |
++---+---------+     +--+---+-----------------------------+
+    |                  |   |
+    | (orders/users)   |   | Atlas $vectorSearch
++---v------+     +----v---v-----+         +------------+
+| Google   |     | Atlas Vector |         | Stripe API |
+| Gemini   |     | Search       |         | (test mode)|
+| API      |     | policy_chunks|         +------------+
++----------+     +--------------+
 ```
 
 **Key design decisions:**
@@ -138,15 +141,25 @@
 | **express-validator** | Request input validation |
 | **dotenv** | Environment variable management |
 
+### RAG Service (Python)
+| Technology | Purpose |
+|---|---|
+| **Python 3.12** | Runtime |
+| **FastAPI** | REST API framework |
+| **google-genai SDK** | Gemini embedding model (`gemini-embedding-001`) |
+| **PyMongo** | MongoDB Atlas `$vectorSearch` client |
+| **uvicorn** | ASGI production server |
+
 ### Tooling & Deployment
 | Tool | Purpose |
 |---|---|
-| **Jest** | Unit test runner (43 tests) |
+| **Jest** | Unit test runner (50 tests) |
 | **Nodemon** | Hot-reload dev server |
 | **Concurrently** | Run frontend & backend simultaneously |
 | **Vercel** | Frontend hosting |
-| **Render** | Backend hosting |
-| **MongoDB Atlas** | Cloud database |
+| **Google Cloud Run** | Backend API + RAG service hosting |
+| **MongoDB Atlas** | Cloud database + Vector Search |
+| **GitHub Actions** | CI/CD (test + deploy) |
 
 ---
 
@@ -756,24 +769,146 @@ npm run dev:all
 
 1. Connect your GitHub repo to [Vercel](https://vercel.com).
 2. Set **Root Directory** to `frontend`.
-3. Add env var: `REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_test_...`
+3. Add env vars:
+   - `REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_test_...`
+   - `REACT_APP_API_URL=https://shopagent-api-xxxx-el.a.run.app/api`
 
 > Vercel auto-detects Create React App — no extra build config needed.
 
-### Backend — Render
+### Backend API — Google Cloud Run (`shopagent-api`)
 
-1. Create a new **Web Service** on [Render](https://render.com).
-2. **Build Command:** `npm install`
-3. **Start Command:** `node backend/server.js`
-4. Add all root `.env` variables in the Render dashboard.
+The backend is containerised (see [Dockerfile](file:///d:/BuyEasy/Dockerfile)) and deployed to Cloud Run via GitHub Actions.
 
-> **CORS:** `server.js` whitelists `localhost:3000` and `buyeasy-six.vercel.app`. Update when deploying to a custom domain.
+**First deploy (manual):**
+```bash
+gcloud run deploy shopagent-api \
+  --source . --region asia-south1 --allow-unauthenticated \
+  --set-env-vars "NODE_ENV=production,GEMINI_MODEL=gemini-2.5-flash,FRONTEND_URL=https://frontend-nine-zeta-53.vercel.app" \
+  --set-secrets "MONGO_URI=MONGO_URI:latest,JWT_SECRET=JWT_SECRET:latest,..."
+```
+
+See **[docs/MANUAL_STEPS.md](file:///d:/BuyEasy/docs/MANUAL_STEPS.md)** for the full checklist including secrets, IAM, and CI setup.
+
+**Subsequent deploys:** automated via `.github/workflows/deploy.yml` on push to `main`.
+
+### RAG Service — Google Cloud Run (`shopagent-rag`)
+
+The Python FastAPI RAG service lives in `rag-service/` with its own [Dockerfile](file:///d:/BuyEasy/rag-service/Dockerfile).
+
+**Deploy:**
+```bash
+gcloud run deploy shopagent-rag \
+  --source ./rag-service --region asia-south1 \
+  --no-allow-unauthenticated \
+  --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,MONGO_URI=MONGO_URI:latest,RAG_SHARED_SECRET=RAG_SHARED_SECRET:latest"
+```
+
+**Ingest policy documents** (run once after deploy and whenever docs change):
+```bash
+cd rag-service
+export GEMINI_API_KEY=... MONGO_URI=... EMBED_MODEL=gemini-embedding-001
+python ingest.py
+```
 
 ### Database — MongoDB Atlas
 
 1. Create a free cluster at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas).
-2. Whitelist your Render IP (or `0.0.0.0/0` for development).
+2. Whitelist Cloud Run IPs (or `0.0.0.0/0` for development).
 3. Copy the connection string into `MONGO_URI`.
+4. Create the **Atlas Vector Search** index (see `docs/MANUAL_STEPS.md` Step 11).
+
+---
+
+## 16. RAG Policy Search
+
+The `searchPolicy` tool connects the Gemini agent to a retrieval-augmented generation (RAG) service that answers customer questions about BuyEasy's store policies.
+
+### Architecture
+
+```
+User question
+     │
+     ▼
+Agent: calls searchPolicy(question)
+     │
+     ▼ POST /search  (X-Internal-Key auth)
+shopagent-rag (Cloud Run)
+     │ embed question with gemini-embedding-001 (RETRIEVAL_QUERY, 768 dims)
+     ▼
+Atlas $vectorSearch on policy_chunks
+     │ top-k=3 results, cosine similarity, MIN_SCORE=0.6
+     ▼
+Agent narrates answer, cites source filename
+```
+
+### Security boundaries maintained
+
+| Boundary | Enforcement |
+|---|---|
+| RAG only explains policy | `searchPolicy` description + system prompt rule 5 |
+| Eligibility decided by code | `checkReturnEligibility` calls `policyEngine.js` always |
+| Internal service auth | `X-Internal-Key` header + `hmac.compare_digest` |
+| No userId in searchPolicy | Schema has only `question`; no user context passed |
+| Graceful degradation | Timeout/error → `{results:[], error:'policy_search_unavailable'}` |
+
+### Policy documents
+
+| File | Topics covered |
+|---|---|
+| `returns.md` | Eligibility rules, 30-day window, non-returnable categories |
+| `refunds.md` | Refund flow, timelines, payment methods, idempotency |
+| `shipping.md` | Delivery timeframes, tracking, failed deliveries |
+| `cancellations.md` | When/how to cancel, seller-initiated cancellations |
+| `payments.md` | Accepted methods, Stripe security, payment failure |
+| `warranty.md` | Manufacturer warranties, BuyEasy's 30-day defect guarantee |
+
+---
+
+## 17. Evaluation
+
+A retrieval evaluation harness is included at `rag-service/eval.py`.
+
+### How to run
+
+```bash
+# 1. Start (or have deployed) the RAG service
+# 2. Set environment variables
+export RAG_SERVICE_URL=https://shopagent-rag-xxxx-el.a.run.app
+export RAG_SHARED_SECRET=<your-secret>
+
+# 3. Run evaluation
+cd rag-service
+pip install requests
+python eval.py
+```
+
+### Metrics reported
+
+| Metric | Description |
+|---|---|
+| **hit@3** | Fraction of in-scope questions where the correct source file appears in top-3 results |
+| **MRR** | Mean Reciprocal Rank across in-scope questions |
+| **Off-topic rejection** | Fraction of off-topic questions that return 0 results (correct behaviour) |
+| **Avg latency** | Mean wall-clock time per `/search` call |
+
+### Eval set (`eval_set.json`)
+
+30 items total:
+- **25 in-scope** questions phrased as real customer language, spread across all 6 policy documents
+- **5 off-topic** questions (weather, coding help, sports, etc.) that should return no results
+
+### Results
+
+> ⚠️ Run `python eval.py` against the live service and fill in the numbers below.
+
+| Metric | Result |
+|---|---|
+| hit@3 | _run eval.py_ |
+| MRR | _run eval.py_ |
+| Off-topic rejection | _run eval.py_ |
+| Avg latency | _run eval.py_ |
+
+**If results are poor**, `eval.py` prints a list of missed questions with what was retrieved instead and suggestions on whether to fix chunking, document wording, or `MIN_SCORE`.
 
 ---
 
