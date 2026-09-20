@@ -1,0 +1,41 @@
+[
+  {"q": "Can I return something I bought three weeks ago?", "source": "returns.md"},
+  {"q": "My package arrived but the item is broken — can I get my money back?", "source": "returns.md"},
+  {"q": "I ordered food items and now I want to return them, is that possible?", "source": "returns.md"},
+  {"q": "My order still says Shipped, can I request a return?", "source": "returns.md"},
+  {"q": "What happens if the delivery date is missing from the system?", "source": "returns.md"},
+
+  {"q": "How long does it take to get my money back after a refund is approved?", "source": "refunds.md"},
+  {"q": "Will the refund go back to the same card I used to pay?", "source": "refunds.md"},
+  {"q": "I accidentally submitted the refund request twice — will I get charged twice?", "source": "refunds.md"},
+  {"q": "What does it mean when my refund status is Pending?", "source": "refunds.md"},
+  {"q": "My refund was rejected — what can I do next?", "source": "refunds.md"},
+
+  {"q": "How many days does standard shipping usually take?", "source": "shipping.md"},
+  {"q": "The tracking number isn't showing any updates yet, is that normal?", "source": "shipping.md"},
+  {"q": "What happens if nobody is home when the delivery comes?", "source": "shipping.md"},
+  {"q": "Can I have different items from one order sent to different addresses?", "source": "shipping.md"},
+  {"q": "My order was placed on a Sunday, when will it be dispatched?", "source": "shipping.md"},
+
+  {"q": "I placed an order this morning but changed my mind, can I cancel it?", "source": "cancellations.md"},
+  {"q": "My order already shipped — is it too late to cancel?", "source": "cancellations.md"},
+  {"q": "What if BuyEasy cancels my order because the item went out of stock?", "source": "cancellations.md"},
+  {"q": "I paid cash on delivery and the order was cancelled before delivery — do I get a refund?", "source": "cancellations.md"},
+  {"q": "Can I cancel an order that has already been delivered?", "source": "cancellations.md"},
+
+  {"q": "Which credit cards does BuyEasy accept?", "source": "payments.md"},
+  {"q": "Is it safe to enter my card details on BuyEasy?", "source": "payments.md"},
+  {"q": "My payment failed — what should I do?", "source": "payments.md"},
+  {"q": "Does BuyEasy accept PayPal?", "source": "payments.md"},
+  {"q": "Where can I see if my payment was successful?", "source": "payments.md"},
+
+  {"q": "Does the laptop I bought come with a warranty?", "source": "warranty.md"},
+  {"q": "The item I received has a defect — who do I contact for warranty?", "source": "warranty.md"},
+  {"q": "Can I return a damaged item even if the manufacturer warranty doesn't cover it?", "source": "warranty.md"},
+
+  {"q": "What is the weather forecast for Mumbai tomorrow?", "source": null},
+  {"q": "Can you help me write a Python function to sort a list?", "source": null},
+  {"q": "Who won the cricket match last night?", "source": null},
+  {"q": "What is the best smartphone to buy right now regardless of price?", "source": null},
+  {"q": "Can you translate this sentence to French for me?", "source": null}
+]
