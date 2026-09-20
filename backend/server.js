@@ -13,16 +13,18 @@ connectDB();
 
 const app = express();
 
+// Trust Cloud Run's load balancer (required for correct IP / protocol detection)
+app.set('trust proxy', 1);
+
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Enable CORS
+// Enable CORS — allow the Vercel frontend plus localhost for local dev.
+// FRONTEND_URL is set as an env var / Cloud Run secret; no hardcoded URLs.
 const allowedOrigins = [
-  "http://localhost:3000",
-  "https://buyeasy-six.vercel.app",
-  "https://frontend-nine-zeta-53.vercel.app",
-  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
 ].filter(Boolean);
 
 app.use(cors({
@@ -36,7 +38,12 @@ app.use(cors({
 }));
 
 // Serve static files (uploads)
+// NOTE: On Cloud Run the filesystem is ephemeral — uploaded files are lost on restart.
+// See docs/MANUAL_STEPS.md § "Known Limitations" for the recommended GCS migration path.
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// ─── Health check (no auth, no DB) ────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
 
 // Route files
 const auth = require('./routes/auth');
