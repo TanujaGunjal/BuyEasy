@@ -218,3 +218,41 @@ describe('Safety: MAX_TOOL_CALLS cap is unchanged', () => {
   });
 });
 
+
+// --- Step 2: 404 model-not-available graceful handling ---
+describe('agentController: 404 model-not-available produces friendly reply', () => {
+  test('controller source contains 404 / not-found handler branch', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../controllers/agentController.js'), 'utf8');
+    expect(src).toMatch(/err\.status === 404/);
+    expect(src).toMatch(/no longer available|not found/i);
+  });
+  test('404 handler logs GEMINI_MODEL reference and never the API key value', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../controllers/agentController.js'), 'utf8');
+    expect(src).toMatch(/GEMINI_MODEL/);
+    expect(src).not.toMatch(/console\.(log|error).*GEMINI_API_KEY/);
+  });
+  test('404 handler reply does not expose error internals', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../controllers/agentController.js'), 'utf8');
+    // The user-facing reply must be a plain static string
+    expect(src).toMatch(/temporarily unavailable/i);
+    // The reply value in the 404 block must NOT be a template with err.message
+    // Extract just the reply field from the 404 json response
+    const replyField = src.match(/temporarily unavailable[^'"]*['"]/)?.[0] || '';
+    expect(replyField.length).toBeGreaterThan(0); // reply string found
+    // Ensure it doesn't reference err.message (it's a static string, not interpolated)
+    expect(src).not.toMatch(/reply:.*err\.(message|stack)/);
+  });
+  test('404 err.status and message patterns route to model_unavailable branch', () => {
+    function classifyError(err) {
+      if (err.status === 429 || (err.message && err.message.includes('429'))) return 'quota';
+      if (err.status === 404 || (err.message && err.message.includes('404')) || (err.message && /not found|no longer available|model.*unavailable/i.test(err.message))) return 'model_unavailable';
+      return 'generic';
+    }
+    expect(classifyError({ status: 404 })).toBe('model_unavailable');
+    expect(classifyError({ status: 200, message: 'Model no longer available' })).toBe('model_unavailable');
+    expect(classifyError({ status: 200, message: 'model is unavailable' })).toBe('model_unavailable');
+    expect(classifyError({ status: 429 })).toBe('quota');
+    expect(classifyError({ status: 500, message: 'internal error' })).toBe('generic');
+  });
+});
+

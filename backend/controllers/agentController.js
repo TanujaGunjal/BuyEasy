@@ -282,6 +282,21 @@ exports.chat = async (req, res) => {
       });
     }
 
+    // Detect model-not-found / no-longer-available (HTTP 404 from Gemini API).
+    // Log the configured model name so ops can quickly identify which model to replace.
+    // NEVER log the API key.
+    if (err.status === 404 || (err.message && err.message.includes('404')) ||
+        (err.message && /not found|no longer available|model.*unavailable/i.test(err.message))) {
+      console.error(
+        `[Agent] Model not available. Configured model: ${process.env.GEMINI_MODEL || 'gemini-2.5-flash (default)'}. ` +
+        'Update GEMINI_MODEL env var to a current GA model and redeploy.'
+      );
+      return res.status(200).json({
+        reply: 'The assistant is temporarily unavailable. Please try again later or contact support if the issue persists.',
+        lastOrderId: updatedLastOrderId,
+      });
+    }
+
     // All other errors — never expose stack traces to the user
     return res.status(200).json({
       reply: 'Something went wrong processing your request. Please try again or contact support.',
