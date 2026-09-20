@@ -14,6 +14,7 @@ const AgentActionLogSchema = new mongoose.Schema({
       'checkReturnEligibility',
       'initiateRefund',
       'getDeliveryEstimate',
+      'searchPolicy',
       'refundApproved',
       'refundRejected',
     ],

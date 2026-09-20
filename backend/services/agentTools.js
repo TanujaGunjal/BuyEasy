@@ -195,9 +195,59 @@ async function getDeliveryEstimate(orderId, authenticatedUserId) {
   };
 }
 
+// ─── Tool 5: searchPolicy ─────────────────────────────────────────────────────
+
+/**
+ * Searches the RAG policy service for relevant policy text.
+ *
+ * SAFETY NOTE: This tool may only EXPLAIN policy to the user.
+ * It MUST NEVER be used to decide order return eligibility — that is
+ * exclusively the responsibility of policyEngine.checkReturnEligibility.
+ *
+ * @param {string} question  — the user's policy question (max 500 chars)
+ * @returns {{ results: Array<{source,heading,text,score}> } | { results: [], error: string }}
+ */
+async function searchPolicy(question) {
+  const RAG_SERVICE_URL   = process.env.RAG_SERVICE_URL;
+  const RAG_SHARED_SECRET = process.env.RAG_SHARED_SECRET;
+
+  if (!RAG_SERVICE_URL || !RAG_SHARED_SECRET) {
+    // RAG service not configured — fail gracefully so the rest of the agent works
+    return { results: [], error: 'policy_search_unavailable' };
+  }
+
+  // Cap question length to avoid embedding very long strings
+  const cappedQuestion = question.slice(0, 500);
+
+  try {
+    const response = await fetch(`${RAG_SERVICE_URL}/search`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':    'application/json',
+        'X-Internal-Key':  RAG_SHARED_SECRET,
+      },
+      body:   JSON.stringify({ question: cappedQuestion, k: 3 }),
+      signal: AbortSignal.timeout(8000), // 8s covers Cloud Run cold start
+    });
+
+    if (!response.ok) {
+      console.error(`RAG service returned HTTP ${response.status}`);
+      return { results: [], error: 'policy_search_unavailable' };
+    }
+
+    const data = await response.json();
+    return { results: data.results || [] };
+  } catch (err) {
+    // Network error, timeout, or JSON parse failure — never surface to the user
+    console.error('searchPolicy failed:', err.message);
+    return { results: [], error: 'policy_search_unavailable' };
+  }
+}
+
 module.exports = {
   getOrderStatus,
   checkReturnEligibility: checkReturnEligibilityTool,
   initiateRefund,
   getDeliveryEstimate,
+  searchPolicy,
 };

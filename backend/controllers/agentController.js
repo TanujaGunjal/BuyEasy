@@ -77,15 +77,35 @@ const toolDeclarations = [
       required: ['orderId'],
     },
   },
+  {
+    name: 'searchPolicy',
+    description:
+      'Search BuyEasy policy documents (returns, refunds, shipping, cancellations, payments, warranty) ' +
+      'to answer customer policy questions. Use this to EXPLAIN policy to the user. ' +
+      'IMPORTANT: This tool must NEVER be used to determine whether a specific order is eligible for return — ' +
+      'use checkReturnEligibility for that. Always cite the source filename from the result.',
+    parameters: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description: 'The policy question to search for (max 500 characters)',
+        },
+      },
+      required: ['question'],
+    },
+  },
 ];
 
 // ─── Tool Dispatch ─────────────────────────────────────────────────────────────
 // authenticatedUserId is injected server-side. The LLM never provides it.
+// searchPolicy does not need userId — it is a policy-text lookup, not a user action.
 const toolMap = {
   getOrderStatus:          (args, uid) => agentTools.getOrderStatus(args.orderId, uid),
   checkReturnEligibility:  (args, uid) => agentTools.checkReturnEligibility(args.orderId, uid),
   initiateRefund:          (args, uid) => agentTools.initiateRefund(args.orderId, args.reason, uid),
   getDeliveryEstimate:     (args, uid) => agentTools.getDeliveryEstimate(args.orderId, uid),
+  searchPolicy:            (args)      => agentTools.searchPolicy(args.question),
 };
 
 async function dispatchTool(name, args, uid) {
