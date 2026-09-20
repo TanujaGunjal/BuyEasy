@@ -1,0 +1,14 @@
+node_modules
+frontend
+.env
+.git
+.gitignore
+uploads
+*.md
+*.yaml
+*.yml
+.github
+rag-service
+docs
+seed.js
+render.yaml
