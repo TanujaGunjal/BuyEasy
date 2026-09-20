@@ -10,3 +10,8 @@ coverage/
 *.pem
 .env.local
 .env.production
+# Temp secret files created by DEPLOY_CHECKLIST.md PowerShell pattern
+*.tmp_secret_*
+__pycache__/
+rag-service/.venv/
+
