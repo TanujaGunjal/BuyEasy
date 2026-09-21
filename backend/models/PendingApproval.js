@@ -29,7 +29,7 @@ const PendingApprovalSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['pending', 'processing', 'approved', 'rejected'],
     default: 'pending',
   },
   // Link back to the initiating log entry

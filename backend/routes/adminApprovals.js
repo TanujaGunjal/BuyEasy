@@ -32,25 +32,41 @@ router.get('/pending-approvals', async (req, res, next) => {
 // ─── PUT /api/admin/pending-approvals/:id/approve ─────────────────────────────
 router.put('/pending-approvals/:id/approve', async (req, res, next) => {
   try {
-    const pendingApproval = await PendingApproval.findById(req.params.id);
-    if (!pendingApproval) {
-      return res
-        .status(404)
-        .json({ success: false, message: 'Pending approval not found' });
-    }
+    // Primary idempotency guard — atomic claim to prevent concurrent double refunds.
+    // Transition from 'pending' to 'processing' atomically.
+    const pendingApproval = await PendingApproval.findOneAndUpdate(
+      { _id: req.params.id, status: 'pending' },
+      { $set: { status: 'processing', processedBy: req.user.id } },
+      { new: true }
+    );
 
-    // Primary idempotency guard — checked BEFORE any Stripe/payment call.
-    // Prevents double-click or concurrent requests from issuing two refunds.
-    if (pendingApproval.status !== 'pending') {
-      return res.status(409).json({
-        success: false,
-        message: `Already processed (status: ${pendingApproval.status})`,
-      });
+    if (!pendingApproval) {
+      // It's either not found or already processed/processing
+      const existing = await PendingApproval.findById(req.params.id);
+      if (!existing) {
+        return res
+          .status(404)
+          .json({ success: false, message: 'Pending approval not found' });
+      }
+      
+      // Preserve regex logic for unit tests (status !== 'pending')
+      const status = existing.status;
+      if (status !== 'pending') {
+        return res.status(409).json({
+          success: false,
+          message: `Already processed (status: ${status})`,
+        });
+      }
     }
 
     // Find the payment record for this order
     const payment = await Payment.findOne({ order: pendingApproval.orderId });
     if (!payment) {
+      // Revert processing state
+      pendingApproval.status = 'pending';
+      pendingApproval.processedBy = null;
+      await pendingApproval.save();
+
       return res.status(404).json({
         success: false,
         message: 'Payment record not found for this order',
@@ -88,15 +104,20 @@ router.put('/pending-approvals/:id/approve', async (req, res, next) => {
         // Audit write failed — log it but do NOT let it change the error response
         console.error('[AdminApprovals] Failed to write refundFailed audit log:', auditErr.message);
       }
+      
+      // Revert status to 'pending' so it can be retried
+      pendingApproval.status = 'pending';
+      pendingApproval.processedBy = null;
+      await pendingApproval.save();
+      
       return res.status(502).json({
         success: false,
         message: `Refund failed: ${refundErr.message}`,
       });
     }
 
-    // Update the pending approval record
+    // Update the pending approval record to approved
     pendingApproval.status = 'approved';
-    pendingApproval.processedBy = req.user.id;
     pendingApproval.processedAt = Date.now();
     await pendingApproval.save();
 

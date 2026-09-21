@@ -208,7 +208,7 @@ BuyEasy/
 │   │   ├── reviews.js
 │   │   └── users.js
 │   ├── services/
-│   │   ├── agentTools.js                 # 4 tools the LLM can invoke
+│   │   ├── agentTools.js                 # 5 tools the LLM can invoke
 │   │   ├── policyEngine.js               # Deterministic return eligibility rules
 │   │   ├── refundService.js              # Shared refund executor
 │   │   └── stripe.js                     # Stripe SDK singleton (backend-only)
@@ -352,7 +352,7 @@ title, comment, images[], helpful (count), verified (Boolean)
 ## 6. API Reference
 
 Base URL (local): `http://localhost:5000/api`  
-Base URL (production): `https://shopagent-6qrh.onrender.com/api`
+Base URL (production): `http://3.108.61.183:8080/api`
 
 ### 🔐 Auth — `/api/auth`
 | Method | Endpoint | Access | Description |
@@ -613,7 +613,7 @@ if (payment.transactionId.startsWith('pi_')) {
 | Refund amount from DB only | `agentTools.initiateRefund` reads `order.totalPrice`; `reason` is the only LLM string accepted |
 | Agent cannot call Stripe | `agentTools.js` has no Stripe import; Stripe only reachable via admin-auth `refundService` |
 | Order ownership at query | `Order.findOne({ _id, user: authenticatedUserId })` — 404 and 403 are indistinguishable |
-| Primary idempotency | `pendingApproval.status !== 'pending'` → 409 before any Stripe call |
+| Primary idempotency | `findOneAndUpdate` atomic state claim + 409 before any Stripe call |
 | Secondary idempotency | `payment.status === 'Refunded'` → early return in `refundService.js` |
 | Admin-only Stripe trigger | Router-level `protect` + `authorize('admin')` on all `/api/admin` routes |
 | Tool call cap | `MAX_TOOL_CALLS = 5` |
@@ -780,7 +780,7 @@ npm run dev:all
 
 ### Backend API — AWS ECS/Fargate (`shopagent-api`)
 
-The backend is containerised (see [Dockerfile](file:///d:/BuyEasy/Dockerfile)) and deployed to AWS ECS via Fargate.
+The backend is containerised (see [Dockerfile](./Dockerfile)) and deployed to AWS ECS via Fargate.
 
 **Deployment Architecture:**
 - **Region:** ap-south-1
@@ -789,11 +789,11 @@ The backend is containerised (see [Dockerfile](file:///d:/BuyEasy/Dockerfile)) a
 - **Logs:** Amazon CloudWatch
 - **Network:** VPC Public Subnets with Security Group allowing port 8080
 
-See **[docs/DEPLOY_CHECKLIST.md](file:///d:/BuyEasy/docs/DEPLOY_CHECKLIST.md)** for the full checklist including secrets, IAM, and infrastructure setup.
+See **[docs/DEPLOY_CHECKLIST.md](./docs/DEPLOY_CHECKLIST.md)** for the full checklist including secrets, IAM, and infrastructure setup.
 
 ### RAG Service — AWS ECS/Fargate (`shopagent-rag`)
 
-The Python FastAPI RAG service lives in `rag-service/` with its own [Dockerfile](file:///d:/BuyEasy/rag-service/Dockerfile). It is deployed similarly to AWS ECS/Fargate in the same cluster.
+The Python FastAPI RAG service lives in `rag-service/` with its own [Dockerfile](./rag-service/Dockerfile). It is deployed similarly to AWS ECS/Fargate in the same cluster.
 
 **Ingest policy documents** (run once after deploy and whenever docs change):
 ```bash
@@ -805,7 +805,7 @@ python ingest.py
 ### Database — MongoDB Atlas
 
 1. Create a free cluster at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas).
-2. Whitelist Cloud Run IPs (or `0.0.0.0/0` for development).
+2. Whitelist AWS ECS IPs (or `0.0.0.0/0` for development).
 3. Copy the connection string into `MONGO_URI`.
 4. Create the **Atlas Vector Search** index (see `docs/MANUAL_STEPS.md` Step 11).
 
@@ -883,13 +883,13 @@ Remove-Item Env:RAG_SHARED_SECRET
 
 ### Eval set (`eval_set.json`)
 
-40 items total:
-- **35 in-scope** questions — formal and informal/typo phrasing, spread across all 6 policy documents; 4 questions have `"source"` as a list (answer spans two docs, either accepted as a hit)
+43 items total:
+- **38 in-scope** questions — formal and informal/typo phrasing, spread across all 6 policy documents; 4 questions have `"source"` as a list (answer spans two docs, either accepted as a hit)
 - **5 off-topic** questions (weather, coding help, sports, etc.) that should return 0 results
 
 ### Results
 
-Evaluated on the 40-item RAG evaluation set against the live AWS deployment (`eval.py`).
+Evaluated on the 43-item RAG evaluation set against the live AWS deployment (`eval.py`).
 
 | Metric | Result | Note |
 |---|---|---|
