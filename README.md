@@ -7,7 +7,7 @@
 [![Node](https://img.shields.io/badge/Node.js-v18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-v18-61DAFB?logo=react&logoColor=black)](https://reactjs.org)
 
-**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [shopagent-6qrh.onrender.com](https://shopagent-6qrh.onrender.com)
+**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: Deployed on AWS ECS/Fargate
 
 ---
 
@@ -40,7 +40,7 @@
 +---------------------------+------------------------------+
                             | HTTPS / REST
 +---------------------------v------------------------------+
-|         Express.js API — Cloud Run (shopagent-api)       |
+|         Express.js API — AWS ECS/Fargate                 |
 |                                                          |
 |  +-----------+  +-------------+  +------------------+   |
 |  | Auth(JWT) |  |  REST APIs  |  | Agent Controller |   |
@@ -64,7 +64,7 @@
 +---+----------------------------+-------------------------+
     |                            |
 +---v---------+     +-----------v------------------------+
-| MongoDB     |     |  Python RAG — Cloud Run            |
+| MongoDB     |     |  Python RAG — AWS ECS/Fargate      |
 | Atlas       |     |  (shopagent-rag)                   |
 +---+---------+     +--+---+-----------------------------+
     |                  |   |
@@ -153,13 +153,16 @@
 ### Tooling & Deployment
 | Tool | Purpose |
 |---|---|
-| **Jest** | Unit test runner (50 tests) |
+| **Jest** | Unit test runner (58 tests) |
 | **Nodemon** | Hot-reload dev server |
 | **Concurrently** | Run frontend & backend simultaneously |
 | **Vercel** | Frontend hosting |
-| **Google Cloud Run** | Backend API + RAG service hosting |
+| **AWS ECS/Fargate** | Backend API + RAG service hosting |
+| **AWS ECR** | Private Docker container registry |
+| **AWS Secrets Manager** | Secure environment variable storage |
+| **AWS CloudWatch** | Application logging and monitoring |
 | **MongoDB Atlas** | Cloud database + Vector Search |
-| **GitHub Actions** | CI/CD (test + deploy) |
+| **GitHub Actions** | CI/CD |
 
 ---
 
@@ -631,7 +634,7 @@ PASS backend/tests/agentSecurity.test.js
 PASS backend/tests/refundWorkflow.test.js
 
 Test Suites: 4 passed, 4 total
-Tests:       43 passed, 43 total
+Tests:       58 passed, 58 total
 Time:        ~0.4 s
 ```
 
@@ -775,33 +778,22 @@ npm run dev:all
 
 > Vercel auto-detects Create React App — no extra build config needed.
 
-### Backend API — Google Cloud Run (`shopagent-api`)
+### Backend API — AWS ECS/Fargate (`shopagent-api`)
 
-The backend is containerised (see [Dockerfile](file:///d:/BuyEasy/Dockerfile)) and deployed to Cloud Run via GitHub Actions.
+The backend is containerised (see [Dockerfile](file:///d:/BuyEasy/Dockerfile)) and deployed to AWS ECS via Fargate.
 
-**First deploy (manual):**
-```bash
-gcloud run deploy shopagent-api \
-  --source . --region asia-south1 --allow-unauthenticated \
-  --set-env-vars "NODE_ENV=production,GEMINI_MODEL=gemini-2.5-flash,FRONTEND_URL=https://frontend-nine-zeta-53.vercel.app" \
-  --set-secrets "MONGO_URI=MONGO_URI:latest,JWT_SECRET=JWT_SECRET:latest,..."
-```
+**Deployment Architecture:**
+- **Region:** ap-south-1
+- **Registry:** Amazon ECR
+- **Secrets:** AWS Secrets Manager
+- **Logs:** Amazon CloudWatch
+- **Network:** VPC Public Subnets with Security Group allowing port 8080
 
-See **[docs/MANUAL_STEPS.md](file:///d:/BuyEasy/docs/MANUAL_STEPS.md)** for the full checklist including secrets, IAM, and CI setup.
+See **[docs/DEPLOY_CHECKLIST.md](file:///d:/BuyEasy/docs/DEPLOY_CHECKLIST.md)** for the full checklist including secrets, IAM, and infrastructure setup.
 
-**Subsequent deploys:** automated via `.github/workflows/deploy.yml` on push to `main`.
+### RAG Service — AWS ECS/Fargate (`shopagent-rag`)
 
-### RAG Service — Google Cloud Run (`shopagent-rag`)
-
-The Python FastAPI RAG service lives in `rag-service/` with its own [Dockerfile](file:///d:/BuyEasy/rag-service/Dockerfile).
-
-**Deploy:**
-```bash
-gcloud run deploy shopagent-rag \
-  --source ./rag-service --region asia-south1 \
-  --no-allow-unauthenticated \
-  --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,MONGO_URI=MONGO_URI:latest,RAG_SHARED_SECRET=RAG_SHARED_SECRET:latest"
-```
+The Python FastAPI RAG service lives in `rag-service/` with its own [Dockerfile](file:///d:/BuyEasy/rag-service/Dockerfile). It is deployed similarly to AWS ECS/Fargate in the same cluster.
 
 **Ingest policy documents** (run once after deploy and whenever docs change):
 ```bash
@@ -832,7 +824,7 @@ User question
 Agent: calls searchPolicy(question)
      │
      ▼ POST /search  (X-Internal-Key auth)
-shopagent-rag (Cloud Run)
+shopagent-rag (AWS ECS/Fargate)
      │ embed question with gemini-embedding-001 (RETRIEVAL_QUERY, 768 dims)
      ▼
 Atlas $vectorSearch on policy_chunks
@@ -897,9 +889,16 @@ Remove-Item Env:RAG_SHARED_SECRET
 
 ### Results
 
-Results will be filled in after the Cloud Run deployment. Run `python eval.py` against the live service (see `docs/DEPLOY_CHECKLIST.md` Tier 2) and update this table.
+Evaluated on the 40-item RAG evaluation set against the live AWS deployment (`eval.py`).
 
-**If results are poor**, `eval.py` prints a list of missed questions with what was retrieved instead and suggestions on whether to fix chunking, document wording, or `MIN_SCORE`.
+| Metric | Result | Note |
+|---|---|---|
+| **Hit@3 (in-scope)** | 1.000 (38/38) | Perfect retrieval rate for all valid questions. |
+| **MRR** | 0.969 | High ranking precision. |
+| **Off-topic rejection** | 0.000 (0/5) | Currently allows context retrieval for off-topic queries. Identified improvement area: tune `MIN_SCORE` threshold. |
+| **Avg latency** | 0.508 s | Mean wall-clock time per API call. |
+
+**If results drift**, `eval.py` prints a list of missed questions with what was retrieved instead and suggestions on whether to fix chunking, document wording, or `MIN_SCORE`.
 
 ---
 

@@ -177,7 +177,25 @@ exports.chat = async (req, res) => {
         });
       }
 
-      const result = await model.generateContent({ contents });
+      let result;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          result = await model.generateContent({ contents });
+          break; // success
+        } catch (genErr) {
+          if (retries === 1) throw genErr;
+          if (genErr.status === 503 || (genErr.message && /overloaded|503/i.test(genErr.message))) {
+            const delay = (4 - retries) * 1000; // 1s, 2s
+            console.log(`[Agent] Model API overloaded. Retrying in ${delay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            retries--;
+          } else {
+            throw genErr;
+          }
+        }
+      }
+      
       const response = result.response;
       const candidate = response.candidates?.[0];
 

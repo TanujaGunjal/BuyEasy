@@ -1,9 +1,9 @@
-# ShopAgent — Manual Steps for Cloud Run Deployment
+# ShopAgent — Manual Steps for Deployment
 
 > 💻 **On Windows / PowerShell?** Use **[docs/DEPLOY_CHECKLIST.md](DEPLOY_CHECKLIST.md)** instead.
 > It has the same steps rewritten with PowerShell-native syntax ($env:, backtick continuation,
-> Set-Content for secrets, curl.exe) and a priority-tiered checklist with exact expected output.
-> This file (MANUAL_STEPS.md) is the narrative reference with full context for each decision.
+> Set-Content for secrets, curl.exe) and a priority-tiered checklist with exact expected output for AWS ECS/Fargate.
+> This file (MANUAL_STEPS.md) is the narrative reference with full context for each decision, largely focusing on Google Cloud Run as the fallback.
 
 > **Execute these steps in order.** Steps marked 🔒 involve secrets — never
 > paste real values into chat, CI logs, or code. Replace every `<PLACEHOLDER>`

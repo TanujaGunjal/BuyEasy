@@ -8,7 +8,7 @@
 
 ## Five-minute pre-flight (do this before Tier 1)
 
-### [ ] P.1 Confirm `deploy.yml` order and guards
+### [x] P.1 Confirm `deploy.yml` order and guards
 
 Open [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) and verify:
 - `test` job runs on every push/PR (no `if:` guard) ✅
@@ -18,7 +18,7 @@ Open [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) and verif
 
 This file was already verified as correct by the last session.
 
-### [ ] P.2 Verify every `"source"` in `eval_set.json` is a real filename
+### [x] P.2 Verify every `"source"` in `eval_set.json` is a real filename
 
 The 6 real policy doc filenames are:
 `returns.md` `refunds.md` `shipping.md` `cancellations.md` `payments.md` `warranty.md`
@@ -30,11 +30,9 @@ use subsets of the 6 valid names.
 Spot-check: rewrite 2–3 of the informal questions in your own words so they reflect
 how *your* customers ask (the AI guessed; you know better).
 
-### [ ] P.3 Build both Docker images locally (optional if deploying to Azure)
+### [x] P.3 Build both Docker images locally
 
-> `az containerapp up --source` builds your Dockerfile in Azure Cloud Build, so you
-> **don't need Docker Desktop running** for the Azure path.
-> Only do this step if you want faster local feedback, or if you're deploying to GCP.
+> **Start Docker Desktop first.** AWS deployment (Tier 1-A) requires pushing images to ECR, so Docker Desktop must be running. For GCP (Tier 1-B), Cloud Build handles it automatically, but a local build is good for faster feedback.
 
 ```powershell
 # API image
@@ -46,8 +44,7 @@ docker build -t shopagent-rag ./rag-service
 # Expected last line: Successfully tagged shopagent-rag:latest
 ```
 
-If either build fails, fix it before deploying — both `az containerapp up` and
-`gcloud run deploy --source` use the same Dockerfile.
+If either build fails, fix it before deploying — your cloud provider will use the same Dockerfile.
 
 Optional smoke test (replace values):
 ```powershell
@@ -61,242 +58,171 @@ curl.exe http://localhost:8080/health   # expected: {"status":"ok"}
 
 ## Choose your cloud platform
 
-| | Azure Container Apps (Tier 1-A) | Google Cloud Run (Tier 1-B) |
+| | AWS ECS/Fargate (Tier 1-A) | Google Cloud Run (Tier 1-B) |
 |---|---|---|
-| **CLI** | `az containerapp up --source` | `gcloud run deploy --source` |
-| **Docker Desktop needed?** | No — builds in Azure | No — builds in Cloud Build |
-| **Free credit** | Azure for Students (~$100, check with spit.ac.in email) | $300 trial (credit card required) |
-| **JD alignment** | AZ-900 / AI-900 named in JD | GCP is fine too |
-| **Secrets** | Container Apps secrets + `secretref:` | Secret Manager + `--set-secrets` |
-| **Logs** | Log Analytics — `ContainerAppConsoleLogs_CL` | Cloud Logging — Cloud Run Logs tab |
+| **CLI** | `aws` and `docker` | `gcloud run deploy --source` |
+| **Docker Desktop needed?** | Yes — to build and push to ECR | No — builds in Cloud Build |
+| **Free credit** | AWS Free Tier (subject to limits) | $300 trial (credit card required) |
+| **Logs** | CloudWatch | Cloud Logging — Cloud Run Logs tab |
 
-**Start with Tier 1-A (Azure).** If `az containerapp up` fails with an error you can't resolve, fall back to Tier 1-B (GCP).
+**Start with Tier 1-A (AWS).** If AWS setup fails, fall back to Tier 1-B (GCP).
 
 ---
 
-## Tier 1-A — Get it live on Azure Container Apps
+## AWS Cost Safety Warning
 
-Work through these in order. Replace every `<...>` with your real value.
-Install the Azure CLI first if needed: `winget install Microsoft.AzureCLI`
-
-### [ ] A.0 One-time Azure setup
-
-```powershell
-az login
-az extension add --name containerapp --upgrade
-az provider register --namespace Microsoft.App --wait
-az provider register --namespace Microsoft.OperationalInsights --wait
-
-az group create --name shopagent-rg --location centralindia
-az containerapp env create --name shopagent-env `
-  --resource-group shopagent-rg --location centralindia
-```
-
-**Expected:** `"provisioningState": "Succeeded"` on the last command.
+> ⚠️ **Important:** AWS Free account plan/credits are subject to AWS eligibility and limits.
+> - Do not assume every ECS/Fargate configuration is free.
+> - Keep minimum resources as low as practical.
+> - Add billing/free-tier monitoring before deployment where supported.
+> - **Stop/delete AWS resources after testing/interviews if they are no longer needed.**
+> - Never claim the deployment is free unless the actual AWS account plan and resource usage have been verified.
 
 ---
 
-### [ ] A.1 Deploy the RAG service first
+## Tier 1-A — AWS ECS/Fargate (primary)
+
+Work through these in order. Replace `<...>` placeholders with your real values.
+
+### [x] A.0 — AWS CLI/account verification
 
 ```powershell
-az containerapp up --name shopagent-rag --resource-group shopagent-rg `
-  --environment shopagent-env --source ./rag-service `
-  --ingress external --target-port 8080
+# Check aws --version
+aws --version
+
+# Verify the AWS account/region
+aws sts get-caller-identity
 ```
 
-> The first revision may crash-loop because the app reads secrets at startup.
-> That’s expected. Set the secrets in the next command and it recovers automatically.
+**Do not deploy yet.** Verify you are logged into the correct AWS account and region.
 
+---
+
+### [x] A.1 — AWS prerequisites
+
+- Choose an appropriate region (e.g., `us-east-1`).
+- Verify ECR/ECS permissions for your IAM identity.
+- Create the required ECR repositories:
 ```powershell
-# Set secrets (values from your .env — do not paste into shared terminal history)
-az containerapp secret set --name shopagent-rag --resource-group shopagent-rg --secrets `
-  gemini-key=<GEMINI_API_KEY> `
-  mongo-uri=<MONGO_URI> `
-  rag-secret=<RAG_SHARED_SECRET>
-
-# Wire secrets as env vars + keep one warm instance for interview week
-az containerapp update --name shopagent-rag --resource-group shopagent-rg `
-  --min-replicas 1 `
-  --set-env-vars `
-    GEMINI_API_KEY=secretref:gemini-key `
-    MONGO_URI=secretref:mongo-uri `
-    RAG_SHARED_SECRET=secretref:rag-secret
+aws ecr create-repository --repository-name shopagent-rag
+aws ecr create-repository --repository-name shopagent-api
 ```
+- Configure secrets and environment variables securely (e.g., in AWS Systems Manager Parameter Store or AWS Secrets Manager).
 
-**Expected:** revision status shows `Running`.
+---
 
-> After your interviews: `az containerapp update --name shopagent-rag --resource-group shopagent-rg --min-replicas 0`
+### [x] A.2 — RAG deployment
 
-Get the RAG URL:
+1. Build the RAG Docker image.
+2. Push it to ECR:
 ```powershell
-$RAG_URL = "https://" + (az containerapp show `
-  --name shopagent-rag --resource-group shopagent-rg `
-  --query properties.configuration.ingress.fqdn -o tsv)
-Write-Host $RAG_URL
+# Replace <account-id> and <region> with your details
+aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
+
+docker tag shopagent-rag:latest <account-id>.dkr.ecr.<region>.amazonaws.com/shopagent-rag:latest
+docker push <account-id>.dkr.ecr.<region>.amazonaws.com/shopagent-rag:latest
+```
+3. Deploy the Python FastAPI RAG service using **ECS Express Mode / Fargate**.
+4. Configure the required internal secret (`RAG_SHARED_SECRET`) and standard environment variables.
+5. Obtain the RAG endpoint from the deployed service.
+```powershell
+$RAG_URL = "http://<your-rag-alb-endpoint>"
 ```
 
 ---
 
-### [ ] A.2 Atlas Network Access + vector index + ingest
+### [x] A.3 — MongoDB Atlas
 
-Same as the GCP path — no Azure-specific changes:
-
-1. **Atlas Network Access** → `+ ADD IP ADDRESS` → `0.0.0.0/0` → wait for **Active**
-2. **Search** tab → `+ Create Search Index` → JSON editor → database `buyeasy`, collection `policy_chunks`, name `policy_vector_index`:
-```json
-{"fields":[{"type":"vector","path":"embedding","numDimensions":768,"similarity":"cosine"}]}
-```
-3. Wait for index status **Active** (1–3 min).
-4. Run ingest:
+1. **Configure Network Access**: Allow ECS IPs or `0.0.0.0/0` (if testing temporarily).
+2. **Verify `policy_vector_index` is Active** in the Atlas Search UI.
+3. **Run `ingest.py`**:
 ```powershell
-rag-service\.venv\Scripts\Activate.ps1   # create with: python -m venv rag-service\.venv
-pip install -r rag-service\requirements.txt
-
 $env:GEMINI_API_KEY = "<your-key>"
-$env:MONGO_URI      = "<your-atlas-uri>"
+$env:MONGO_URI = "<your-atlas-uri>"
 python rag-service\ingest.py
 Remove-Item Env:GEMINI_API_KEY, Env:MONGO_URI
 ```
-**Expected last line:** `Indexed N chunks into policy_chunks`
-
----
-
-### [ ] A.3 Test the RAG service directly (before deploying the API)
-
+4. **Test RAG directly with `Invoke-RestMethod`**:
 ```powershell
 $env:RAG_SHARED_SECRET = "<your-rag-shared-secret>"
-
-curl.exe "$RAG_URL/health"
-# Expected: {"status":"ok"}
-
 Invoke-RestMethod -Method Post -Uri "$RAG_URL/search" `
   -Headers @{ "X-Internal-Key" = $env:RAG_SHARED_SECRET } `
   -ContentType "application/json" `
   -Body '{"question":"can I return food items","k":3}'
-# Expected: object with results array containing source, heading, score
-
 Remove-Item Env:RAG_SHARED_SECRET
 ```
 
 | Error | Cause | Fix |
 |---|---|---|
-| Google/Azure HTML 403 | Service not public | Redeploy with `--ingress external` |
-| JSON 401 `{"detail":"Unauthorized"}` | Secret mismatch | Both services must use same RAG_SHARED_SECRET value |
+| AWS Security Group / Timeout | Service not public or blocked | Check ECS Security Groups and ALB rules |
+| JSON `{"detail":"Unauthorized"}` (401) | Secret mismatch | Both services must use same RAG_SHARED_SECRET value |
 | `{"results":[]}` empty | Index not Active or ingest not run | Check Atlas Search tab; re-run ingest; try lower MIN_SCORE |
-| Timeout / connection refused | Wrong URL | Confirm `$RAG_URL` with `az containerapp show` |
+| Connection refused | Wrong URL or container crash | Check CloudWatch logs for the RAG task |
 
 ---
 
-### [ ] A.4 Deploy the API service
+### [x] A.4 — Node API deployment
 
+1. Build the Node API Docker image and push to ECR:
 ```powershell
-az containerapp up --name shopagent-api --resource-group shopagent-rg `
-  --environment shopagent-env --source . `
-  --ingress external --target-port 8080
+docker tag shopagent-api:latest <account-id>.dkr.ecr.<region>.amazonaws.com/shopagent-api:latest
+docker push <account-id>.dkr.ecr.<region>.amazonaws.com/shopagent-api:latest
 ```
-
+2. Deploy using **ECS Express Mode / Fargate**.
+3. Configure all required secrets/environment variables:
+   `MONGO_URI`, `JWT_SECRET`, `STRIPE_SECRET_KEY`, `GEMINI_API_KEY`, `EMAIL_USER`, `EMAIL_PASS`, `RAG_SHARED_SECRET`, `RAG_SERVICE_URL=$RAG_URL`, etc.
+4. Obtain the API URL.
 ```powershell
-az containerapp secret set --name shopagent-api --resource-group shopagent-rg --secrets `
-  mongo-uri=<MONGO_URI> `
-  jwt-secret=<JWT_SECRET> `
-  stripe-key=<STRIPE_SECRET_KEY> `
-  gemini-key=<GEMINI_API_KEY> `
-  email-user=<EMAIL_USER> `
-  email-pass=<EMAIL_PASS> `
-  rag-secret=<RAG_SHARED_SECRET>
-
-az containerapp update --name shopagent-api --resource-group shopagent-rg `
-  --min-replicas 1 `
-  --set-env-vars `
-    NODE_ENV=production `
-    GEMINI_MODEL=gemini-2.5-flash `
-    FRONTEND_URL=https://frontend-nine-zeta-53.vercel.app `
-    RAG_SERVICE_URL=$RAG_URL `
-    JWT_EXPIRE=30d `
-    STRIPE_PUBLISHABLE_KEY=<pk_test_...> `
-    EMAIL_HOST=smtp.gmail.com `
-    EMAIL_PORT=587 `
-    FROM_NAME=BuyEasy `
-    FROM_EMAIL=noreply@buyeasy.com `
-    MONGO_URI=secretref:mongo-uri `
-    JWT_SECRET=secretref:jwt-secret `
-    STRIPE_SECRET_KEY=secretref:stripe-key `
-    GEMINI_API_KEY=secretref:gemini-key `
-    EMAIL_USER=secretref:email-user `
-    EMAIL_PASS=secretref:email-pass `
-    RAG_SHARED_SECRET=secretref:rag-secret
-```
-
-Get the API URL:
-```powershell
-$API_URL = "https://" + (az containerapp show `
-  --name shopagent-api --resource-group shopagent-rg `
-  --query properties.configuration.ingress.fqdn -o tsv)
-Write-Host $API_URL
+$API_URL = "http://<your-api-alb-endpoint>"
 ```
 
 ---
 
-### [ ] A.5 Verify both services are really working
+### [x] A.5 — API verification
 
-> ⚠️ `/health` returns `{"status":"ok"}` even when MongoDB is unreachable.
-> Always also check `/api/products` — that proves Atlas is live.
-
+1. **Test `/health`**:
 ```powershell
 curl.exe "$API_URL/health"
-# Expected: {"status":"ok"}
-
-curl.exe "$API_URL/api/products"
-# Expected: JSON array of products
-# If 500 or timeout — open Azure Portal → shopagent-api → Log stream
-# Search for [DB] — the line will say why MongoDB failed
 ```
-
-**Azure Logs (when you need them):**
-Portal → shopagent-env (Container Apps Environment) → **Logs** → run:
-```kusto
-ContainerAppConsoleLogs_CL
-| where ContainerName_s == "shopagent-api"
-| where Log_s contains "[DB]"
-| project TimeGenerated, Log_s
-| order by TimeGenerated desc
-| take 20
-```
-
----
-
-### [ ] A.6 Point Vercel at the Azure API
-
-In Vercel Dashboard → Project Settings → Environment Variables:
-
-| Name | Value |
-|---|---|
-| `REACT_APP_API_URL` | `https://<shopagent-api-fqdn>/api` |
-| `REACT_APP_STRIPE_PUBLISHABLE_KEY` | `pk_test_...` |
-
-Then **Deployments → Redeploy** the latest.
-
----
-
-### [ ] A.7 Live end-to-end test
-
-```
-[ ] Ask: "What is your return policy?"  → agent answers from RAG, not "I don't know"
-[ ] Ask: "I want a refund for my order" → PendingApproval created in DB
-[ ] Admin: approve the refund            → 200 with refund info
-[ ] Admin: approve again immediately      → 409 {"message":"Already processed"}
-```
-
----
-
-### [ ] A.8 Update README live demo line
-
-Once deployed, replace the Render link with the Azure URL:
-
+2. **Test `/api/products`**:
 ```powershell
-# Get the line to paste into README.md line 10:
-Write-Host "**Live Demo:** 🖥️ Frontend: [frontend-nine-zeta-53.vercel.app](https://frontend-nine-zeta-53.vercel.app) | ⚙️ Backend API: [$API_URL]($API_URL) (Azure Container Apps)"
+curl.exe "$API_URL/api/products"
 ```
+3. **Verify CloudWatch logs**: Ensure there are no database connection failures.
+4. **Verify agent tool-call logging**: Ensure AI function calls are recorded properly in logs.
+
+---
+
+### [x] A.6 — Vercel
+
+1. Set `REACT_APP_API_URL` to your `$API_URL/api`.
+2. Redeploy the frontend.
+
+---
+
+### [x] A.7 — End-to-end
+
+Test via the live frontend:
+```
+[x] policy question → RAG response answers accurately
+[x] order query → order details retrieved
+[x] refund workflow → agent creates PendingApproval
+[x] human approval → Admin approves the refund via the dashboard
+[x] duplicate approval returns 409 → clicking approve again fails gracefully
+[x] verify audit logging → check CloudWatch/MongoDB for AgentActionLog entries
+```
+
+---
+
+### [x] A.8 — Evaluation
+
+1. Run the retrieval evaluation against your live AWS RAG endpoint:
+```powershell
+$env:RAG_SERVICE_URL = $RAG_URL
+$env:RAG_SHARED_SECRET = "<your-rag-secret>"
+python rag-service\eval.py
+```
+2. Record the **real Hit@3/MRR/off-topic metrics** into your `README.md`. **Do not invent metrics.**
 
 ---
 
